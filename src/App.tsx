@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { auth, googleProvider, db } from './firebaseConfig';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { 
-  doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, 
+  doc, setDoc, updateDoc, addDoc, deleteDoc, 
   collection, query, where, getDocs, onSnapshot 
 } from 'firebase/firestore';
 import './style.css';
@@ -206,4 +206,244 @@ function PanelPsicologo({ userData, userUid }: any) {
 
   return (
     <div style={{textAlign: 'left'}}>
-      <div style={{background: '#e3f2fd', padding: '20px
+      <div style={{background: '#e3f2fd', padding: '20px', borderRadius: '12px', marginBottom: '20px'}}>
+        <h3 style={{marginTop: 0, color: '#0d47a1'}}>👨‍⚕️ Mi Consultorio</h3>
+        {miCodigo ? <p>Código para pacientes: <strong>{miCodigo}</strong></p> : <button onClick={generarCodigo} className="btn-primary">Generar Código</button>}
+      </div>
+
+      <div style={{display: 'flex', gap: '25px', flexWrap: 'wrap'}}>
+        <div style={{flex: 1, minWidth: '280px'}}>
+          <h4>Mis Pacientes ({pacientes.length})</h4>
+          <ul style={{listStyle: 'none', padding: 0}}>
+            {pacientes.map(p => (
+              <li key={p.id} style={{marginBottom: '10px'}}>
+                <button onClick={() => setPacienteSeleccionado(p)} style={{
+                    width: '100%', padding: '15px', background: pacienteSeleccionado?.id === p.id ? '#007bff' : 'white',
+                    color: pacienteSeleccionado?.id === p.id ? 'white' : '#333', border: '1px solid #e0e0e0', borderRadius: '10px', 
+                    cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between'
+                  }}>
+                  <span>{p.displayName}</span><span>👤</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div style={{flex: 2, minWidth: '320px'}}>
+          {pacienteSeleccionado ? (
+            <div>
+              <div style={{background: '#f8f9fa', padding: '20px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #e9ecef'}}>
+                <h4>Nuevo hábito para: {pacienteSeleccionado.displayName}</h4>
+                <div style={{marginBottom: '10px'}}>
+                    <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Hábito:</label>
+                    <input type="text" value={tituloHabito} onChange={(e) => setTituloHabito(e.target.value)} placeholder="Ej: Leer 20 min" style={{width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc'}} />
+                </div>
+                <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end'}}>
+                  <div>
+                    <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Meta %:</label>
+                    <input type="number" value={metaSemanal} onChange={(e) => setMetaSemanal(Number(e.target.value))} style={{width: '80px', padding: '10px', borderRadius: '5px', border: '1px solid #ccc'}} />
+                  </div>
+                  <button onClick={crearHabito} className="btn-primary" style={{flex: 1, height: '40px'}}>Agregar ➕</button>
+                </div>
+              </div>
+              <div style={{display: 'grid', gap: '10px'}}>
+                {habitosPaciente.map(h => {
+                   const p = calcularProgreso(h.registro);
+                   return (
+                    <div key={h.id} style={{border: '1px solid #eee', background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <div style={{flex: 1}}>
+                        <strong>{h.titulo}</strong>
+                        <div style={{width: '100%', background: '#eee', height: '6px', marginTop: '5px', maxWidth: '200px', borderRadius: '3px'}}><div style={{width: `${p}%`, background: p >= h.metaSemanal ? '#28a745' : '#007bff', height: '100%', borderRadius: '3px'}}></div></div>
+                      </div>
+                      <button onClick={() => eliminarHabito(h.id)} style={{background:'white', border:'1px solid red', borderRadius: '5px', cursor:'pointer'}}>🗑️</button>
+                    </div>
+                   )
+                })}
+              </div>
+            </div>
+          ) : <div style={{padding: '50px', textAlign: 'center', color: '#999', border: '2px dashed #ccc'}}>Selecciona un paciente</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 6. PANEL DE ADMINISTRADOR (TABLA GLOBAL)
+// ==========================================
+function PanelAdmin() {
+  const [usuarios, setUsuarios] = useState<any[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, "users"));
+    const unsubscribe = onSnapshot(q, (snap) => setUsuarios(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return () => unsubscribe();
+  }, []);
+
+  const asignarRol = async (uid: string, tipo: 'psico' | 'paciente') => {
+    if(!confirm(`¿Confirmar rol de ${tipo}?`)) return;
+    const updates: any = { estatus: 'activo', isPsicologo: false, isPaciente: false };
+    
+    if (tipo === 'psico') {
+        updates.isPsicologo = true;
+        updates.codigoVinculacion = "PSI-" + Math.floor(1000 + Math.random() * 9000);
+    } else {
+        updates.isPaciente = true;
+        updates.estatus = 'pendiente';
+    }
+    await updateDoc(doc(db, "users", uid), updates);
+  };
+
+  return (
+    <div className="container" style={{maxWidth: '1000px'}}>
+      <h2>🛠️ Administración de Usuarios</h2>
+      <div style={{overflowX: 'auto'}}>
+        <table style={{width: '100%', borderCollapse: 'collapse', marginTop: '20px'}}>
+            <thead>
+            <tr style={{background: '#343a40', color: 'white', textAlign: 'left'}}>
+                <th style={{padding: '10px'}}>Usuario</th>
+                <th style={{padding: '10px'}}>Rol Actual</th>
+                <th style={{padding: '10px'}}>Asignar Rol</th>
+            </tr>
+            </thead>
+            <tbody>
+            {usuarios.map(u => (
+                <tr key={u.id} style={{borderBottom: '1px solid #eee'}}>
+                <td style={{padding: '10px'}}>{u.displayName}<br/><small>{u.email}</small></td>
+                <td style={{padding: '10px'}}>
+                    {u.isAdmin && <span style={{background:'gold', padding:'2px 5px', borderRadius:'4px', fontSize:'12px', marginRight:'5px'}}>ADMIN</span>}
+                    {u.isPsicologo && <span style={{color:'blue', marginRight:'5px'}}>Psicólogo</span>}
+                    {u.isPaciente && <span style={{color:'green', marginRight:'5px'}}>Paciente</span>}
+                    {!u.isPsicologo && !u.isPaciente && !u.isAdmin && <span style={{color:'red'}}>Sin Rol</span>}
+                </td>
+                <td style={{padding: '10px'}}>
+                    {!u.isAdmin && (
+                    <div style={{display: 'flex', gap: '5px'}}>
+                        <button onClick={() => asignarRol(u.id, 'psico')} style={{cursor:'pointer', padding: '5px'}}>👨‍⚕️ Psico</button>
+                        <button onClick={() => asignarRol(u.id, 'paciente')} style={{cursor:'pointer', padding: '5px'}}>👤 Paciente</button>
+                    </div>
+                    )}
+                </td>
+                </tr>
+            ))}
+            </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 7. APP PRINCIPAL (CONTROL DE PESTAÑAS)
+// ==========================================
+export default function App() {
+  const [user, setUser] = useState<any>(null);
+  const [userData, setUserData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  
+  const [activeTab, setActiveTab] = useState<'admin' | 'consultorio'>('consultorio');
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setLoading(true);
+      if (currentUser) {
+        setUser(currentUser);
+        const docRef = doc(db, "users", currentUser.uid);
+        const unsubUser = onSnapshot(docRef, async (docSnap) => {
+          if (docSnap.exists()) {
+            setUserData(docSnap.data());
+          } else {
+            const nuevo = {
+              uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName, photoURL: currentUser.photoURL,
+              isAdmin: false, isPsicologo: false, isPaciente: false, estatus: "nuevo_ingreso", createdAt: new Date()
+            };
+            await setDoc(docRef, nuevo);
+            setUserData(nuevo);
+          }
+          setLoading(false);
+        });
+        return () => unsubUser();
+      } else {
+        setUser(null); setUserData(null); setLoading(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) return <div className="loading">Cargando sistema...</div>;
+  if (!user) return <LoginScreen />;
+  if (!userData) return <div className="loading">Cargando perfil...</div>;
+
+  // HEADER COMÚN
+  const Header = () => (
+    <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '0 20px'}}>
+      <div>
+        <h2 style={{margin: 0}}>Hola, {userData.displayName} 👋</h2>
+        <small>
+            {userData.isAdmin && "Admin "}{userData.isPsicologo && "Psicólogo "}{userData.isPaciente && "Paciente"}
+        </small>
+      </div>
+      <button onClick={() => signOut(auth)} className="btn-small">Salir</button>
+    </header>
+  );
+
+  // CASO 1: SOY ADMIN Y PSICÓLOGO (DOBLE ROL)
+  if (userData.isAdmin && userData.isPsicologo) {
+    return (
+      <div className="container" style={{maxWidth: '1100px'}}>
+        <Header />
+        {/* BARRA DE PESTAÑAS */}
+        <div style={{display: 'flex', borderBottom: '2px solid #eee', marginBottom: '20px'}}>
+          <button 
+            onClick={() => setActiveTab('consultorio')}
+            style={{
+              padding: '10px 20px', cursor: 'pointer', background: 'none', border: 'none', fontSize: '16px',
+              borderBottom: activeTab === 'consultorio' ? '3px solid #007bff' : 'none',
+              color: activeTab === 'consultorio' ? '#007bff' : '#666', fontWeight: 'bold'
+            }}
+          >
+            👨‍⚕️ Mi Consultorio
+          </button>
+          <button 
+            onClick={() => setActiveTab('admin')}
+            style={{
+              padding: '10px 20px', cursor: 'pointer', background: 'none', border: 'none', fontSize: '16px',
+              borderBottom: activeTab === 'admin' ? '3px solid #343a40' : 'none',
+              color: activeTab === 'admin' ? '#343a40' : '#666', fontWeight: 'bold'
+            }}
+          >
+            🛠️ Administración
+          </button>
+        </div>
+
+        {/* CONTENIDO */}
+        {activeTab === 'consultorio' ? (
+          <PanelPsicologo userData={userData} userUid={user.uid} />
+        ) : (
+          <PanelAdmin />
+        )}
+      </div>
+    );
+  }
+
+  // CASO 2: SOLO ADMIN
+  if (userData.isAdmin) {
+    return <div className="container"><Header /><PanelAdmin /></div>;
+  }
+
+  // CASO 3: SOLO PSICÓLOGO
+  if (userData.isPsicologo) {
+    return <div className="container"><Header /><PanelPsicologo userData={userData} userUid={user.uid} /></div>;
+  }
+
+  // CASO 4: PACIENTE
+  if (userData.isPaciente) {
+    if (userData.estatus === 'pendiente' || !userData.psicologoId) {
+      return <div className="container"><Header /><VinculacionScreen userUid={user.uid} /></div>;
+    }
+    return <div className="container"><Header /><PanelPaciente userUid={user.uid} /></div>;
+  }
+
+  // CASO 5: SIN ROL
+  return <PantallaEspera />;
+}
