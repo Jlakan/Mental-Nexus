@@ -8,7 +8,7 @@ import {
 import './style.css';
 
 // ==========================================
-// 1. PANTALLA DE LOGIN
+// 1. LOGIN
 // ==========================================
 function LoginScreen() {
   const handleGoogleLogin = async () => {
@@ -32,7 +32,7 @@ function LoginScreen() {
 }
 
 // ==========================================
-// 2. PANTALLA DE REGISTRO (SELECCIÓN DE ROL)
+// 2. REGISTRO (SELECCIÓN DE ROL)
 // ==========================================
 function RegistroScreen({ user }: any) {
   const [modo, setModo] = useState<'seleccion' | 'paciente' | 'terapeuta'>('seleccion');
@@ -40,18 +40,20 @@ function RegistroScreen({ user }: any) {
   const [error, setError] = useState("");
   const [loadingReg, setLoadingReg] = useState(false);
 
+  // Estado para el nombre personalizado en el registro
+  const [nombrePersonalizado, setNombrePersonalizado] = useState(user.displayName || "");
+
   const registrarTerapeuta = async () => {
     setLoadingReg(true);
     try {
-      // Sobreescribimos cualquier dato basura con un perfil limpio de psicólogo
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         email: user.email,
-        displayName: user.displayName,
+        displayName: nombrePersonalizado, // Usamos el nombre editado
         photoURL: user.photoURL,
         rol: 'psicologo',
-        isAdmin: false, // Tú te cambiarás esto manual a true en Firebase
-        isAuthorized: false, // Espera a que el Admin lo apruebe
+        isAdmin: false,
+        isAuthorized: false,
         codigoVinculacion: "PSI-" + Math.floor(1000 + Math.random() * 9000),
         createdAt: new Date()
       });
@@ -68,32 +70,29 @@ function RegistroScreen({ user }: any) {
     setLoadingReg(true);
     
     try {
-      // 1. Buscar al psicólogo por código
       const q = query(collection(db, "users"), where("codigoVinculacion", "==", codigo));
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
         setLoadingReg(false);
-        return setError("Código no válido. Pídeselo a tu terapeuta.");
+        return setError("Código no válido.");
       }
       const psicologoDoc = querySnapshot.docs[0];
       const psicologoId = psicologoDoc.id;
 
-      // 2. Crear el "Puntero" en la raíz users (para login rápido)
       await setDoc(doc(db, "users", user.uid), {
         rol: 'paciente',
         psicologoId: psicologoId, 
         email: user.email
       });
 
-      // 3. Crear el Perfil REAL dentro de la carpeta del Psicólogo
       await setDoc(doc(db, "users", psicologoId, "pacientes", user.uid), {
         uid: user.uid,
-        displayName: user.displayName,
+        displayName: nombrePersonalizado, // Usamos el nombre editado
         email: user.email,
         photoURL: user.photoURL,
         rol: 'paciente',
-        isAuthorized: false, // El psicólogo debe aprobarlo
+        isAuthorized: false,
         createdAt: new Date()
       });
 
@@ -105,12 +104,29 @@ function RegistroScreen({ user }: any) {
     }
   };
 
+  // Input para el nombre (Componente reutilizable)
+  const InputNombre = () => (
+    <div style={{marginBottom: '20px', textAlign: 'left'}}>
+        <label style={{display:'block', marginBottom:'5px', fontWeight:'bold', fontSize:'0.9rem'}}>¿Cómo quieres llamarte?</label>
+        <input 
+            type="text" 
+            value={nombrePersonalizado} 
+            onChange={(e) => setNombrePersonalizado(e.target.value)}
+            style={{padding: '10px', width: '100%'}}
+        />
+    </div>
+  );
+
   if (modo === 'seleccion') {
     return (
       <div className="container" style={{textAlign: 'center'}}>
-        <h2>Bienvenido, {user.displayName}</h2>
-        <p>Para configurar tu cuenta, selecciona tu perfil:</p>
-        <div style={{display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '30px', flexWrap: 'wrap'}}>
+        <h2>Bienvenido</h2>
+        <p>Configura tu perfil inicial.</p>
+        
+        <InputNombre />
+
+        <p>Selecciona tu rol:</p>
+        <div style={{display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '20px', flexWrap: 'wrap'}}>
           <button className="btn-primary" onClick={() => setModo('paciente')} style={{background: '#10B981', flex: 1, minWidth: '150px'}}>
             Soy Paciente 👤
           </button>
@@ -118,7 +134,7 @@ function RegistroScreen({ user }: any) {
             Soy Terapeuta 👨‍⚕️
           </button>
         </div>
-        <button onClick={() => signOut(auth)} className="btn-link" style={{marginTop: '20px'}}>Cancelar / Salir</button>
+        <button onClick={() => signOut(auth)} className="btn-link" style={{marginTop: '20px'}}>Cancelar</button>
       </div>
     );
   }
@@ -127,7 +143,7 @@ function RegistroScreen({ user }: any) {
     return (
       <div className="container" style={{textAlign: 'center'}}>
         <h2>Registro de Terapeuta</h2>
-        <p>Se creará tu perfil profesional.</p>
+        <p>Nombre visible: <strong>{nombrePersonalizado}</strong></p>
         {error && <p style={{color: 'red'}}>{error}</p>}
         <button onClick={registrarTerapeuta} className="btn-primary" disabled={loadingReg}>
           {loadingReg ? "Registrando..." : "Confirmar Registro"}
@@ -140,7 +156,8 @@ function RegistroScreen({ user }: any) {
   return ( // Modo Paciente
     <div className="container" style={{textAlign: 'center'}}>
       <h2>Registro de Paciente</h2>
-      <p>Ingresa el código proporcionado por tu Psicólogo:</p>
+      <p>Nombre visible: <strong>{nombrePersonalizado}</strong></p>
+      <p>Ingresa el código de tu Psicólogo:</p>
       <div style={{margin: '20px 0'}}>
         <input 
           type="text" placeholder="EJ: PSI-1234" 
@@ -158,7 +175,7 @@ function RegistroScreen({ user }: any) {
 }
 
 // ==========================================
-// 3. PANTALLA DE ESPERA (NO AUTORIZADO)
+// 3. PANTALLA DE ESPERA
 // ==========================================
 function PantallaEspera({ mensaje }: { mensaje?: string }) {
   return (
@@ -245,7 +262,7 @@ function PanelPaciente({ userUid, psicologoId }: any) {
 }
 
 // ==========================================
-// 5. PANEL PSICÓLOGO (Consultorio)
+// 5. PANEL PSICÓLOGO
 // ==========================================
 function PanelPsicologo({ userData, userUid }: any) {
   const [pacientes, setPacientes] = useState<any[]>([]); 
@@ -254,9 +271,8 @@ function PanelPsicologo({ userData, userUid }: any) {
   const [tituloHabito, setTituloHabito] = useState("");
   const [metaSemanal, setMetaSemanal] = useState(80);
 
-  // 1. Cargar pacientes desde MI SUBCOLECCIÓN
+  // Cargar pacientes desde subcolección
   useEffect(() => {
-    // users/{miId}/pacientes
     const colRef = collection(db, "users", userUid, "pacientes");
     const unsubscribe = onSnapshot(colRef, (snap) => {
       const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -265,7 +281,7 @@ function PanelPsicologo({ userData, userUid }: any) {
     return () => unsubscribe();
   }, [userUid]);
 
-  // 2. Cargar hábitos
+  // Cargar hábitos
   useEffect(() => {
     if (!pacienteSeleccionado) { setHabitosPaciente([]); return; }
     const q = query(collection(db, "habitos"), where("pacienteId", "==", pacienteSeleccionado.id));
@@ -373,13 +389,12 @@ function PanelPsicologo({ userData, userUid }: any) {
 }
 
 // ==========================================
-// 6. PANEL ADMIN (Aprueba Terapeutas)
+// 6. PANEL ADMIN
 // ==========================================
 function PanelAdmin() {
   const [terapeutas, setTerapeutas] = useState<any[]>([]);
 
   useEffect(() => {
-    // Solo mostramos los que quieren ser psicólogos
     const q = query(collection(db, "users"), where("rol", "==", "psicologo"));
     const unsubscribe = onSnapshot(q, (snap) => setTerapeutas(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     return () => unsubscribe();
@@ -392,7 +407,6 @@ function PanelAdmin() {
   return (
     <div className="container" style={{maxWidth: '1000px'}}>
       <h2>🛠️ Administración de Terapeutas</h2>
-      <p>Aprueba el acceso a los profesionales.</p>
       <div style={{background: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginTop: '20px'}}>
         <table style={{width: '100%'}}>
             <thead style={{background: '#F9FAFB'}}>
@@ -445,28 +459,23 @@ export default function App() {
       setLoading(true);
       if (currentUser) {
         setUser(currentUser);
-        
-        // 1. Buscar en raíz
         let docRef = doc(db, "users", currentUser.uid);
         let docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
           const data = docSnap.data();
-          
-          // Si es paciente, su data real está en el subdocumento del psicólogo
           if (data.rol === 'paciente' && data.psicologoId) {
              const subDocRef = doc(db, "users", data.psicologoId, "pacientes", currentUser.uid);
              const subSnap = await getDoc(subDocRef);
              if (subSnap.exists()) {
                 setUserData({ ...subSnap.data(), psicologoId: data.psicologoId }); 
              } else {
-                setUserData(data); // Fallback
+                setUserData(data); 
              }
           } else {
              setUserData(data); 
           }
         } else {
-          // ¡NO EXISTE! Dejamos userData en null para que salga RegistroScreen
           setUserData(null);
         }
       } else {
@@ -478,21 +487,64 @@ export default function App() {
   }, []);
 
   if (loading) return <div className="loading">Cargando...</div>;
-  
-  // CORRECCIÓN CRÍTICA: Si el usuario existe pero NO tiene rol (usuario zombie), forzamos registro
   if (user && (!userData || !userData.rol)) return <RegistroScreen user={user} />;
-  
-  // Si no está logueado
   if (!user) return <LoginScreen />;
 
-  const Header = () => (
-    <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '0 20px'}}>
-      <h2 style={{margin:0}}>Hola, {userData.displayName} 👋</h2>
-      <button onClick={() => signOut(auth)} className="btn-small">Salir</button>
-    </header>
-  );
+  // HEADER CON FUNCIÓN DE EDITAR NOMBRE
+  const Header = () => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [tempName, setTempName] = useState(userData.displayName);
 
-  // 1. ADMIN + PSICÓLOGO (TÚ)
+    const guardarNombre = async () => {
+        if(!tempName.trim()) return setIsEditing(false);
+        try {
+            // 1. Actualizar en raíz
+            await updateDoc(doc(db, "users", user.uid), { displayName: tempName });
+            
+            // 2. Si es paciente, actualizar en la subcolección del psicólogo
+            if(userData.rol === 'paciente' && userData.psicologoId) {
+                await updateDoc(doc(db, "users", userData.psicologoId, "pacientes", user.uid), { displayName: tempName });
+            }
+            
+            // Actualizar estado local visualmente
+            setUserData({...userData, displayName: tempName});
+            setIsEditing(false);
+        } catch(e) { console.error(e); }
+    };
+
+    return (
+        <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', padding: '0 10px'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
+                <div style={{width: '40px', height: '40px', background: '#4F46E5', borderRadius: '10px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem'}}>
+                    {userData.displayName ? userData.displayName.charAt(0) : "?"}
+                </div>
+                <div>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                        {isEditing ? (
+                            <div style={{display: 'flex', gap: '5px'}}>
+                                <input 
+                                    type="text" value={tempName} onChange={(e) => setTempName(e.target.value)} 
+                                    style={{padding: '5px', fontSize: '1rem', width: '200px'}} autoFocus
+                                />
+                                <button onClick={guardarNombre} style={{background:'#10B981', color:'white', border:'none', borderRadius:'5px', cursor:'pointer'}}>OK</button>
+                            </div>
+                        ) : (
+                            <>
+                                <h2 style={{margin: 0, fontSize: '1.2rem'}}>{userData.displayName}</h2>
+                                <button onClick={() => setIsEditing(true)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'1rem', opacity: 0.5}} title="Editar nombre">✏️</button>
+                            </>
+                        )}
+                    </div>
+                    <div style={{fontSize: '0.8rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px'}}>
+                        {userData.isAdmin && "Administrador • "}{userData.rol === 'psicologo' && "Terapeuta"}{userData.rol === 'paciente' && "Paciente"}
+                    </div>
+                </div>
+            </div>
+            <button onClick={() => signOut(auth)} className="btn-small" style={{color: '#EF4444', fontWeight: 'bold'}}>Cerrar Sesión</button>
+        </header>
+    );
+  };
+
   if (userData.rol === 'psicologo' && userData.isAdmin) {
     return (
       <div className="container" style={{maxWidth: '1200px'}}>
@@ -506,19 +558,16 @@ export default function App() {
     );
   }
 
-  // 2. SOLO PSICÓLOGO
   if (userData.rol === 'psicologo') {
     if (!userData.isAuthorized) return <PantallaEspera mensaje="Esperando aprobación del Administrador." />;
     return <div className="container"><Header /><PanelPsicologo userData={userData} userUid={user.uid} /></div>;
   }
 
-  // 3. PACIENTE
   if (userData.rol === 'paciente') {
     if (!userData.isAuthorized) return <PantallaEspera mensaje="Esperando que tu Psicólogo te autorice." />;
     return <div className="container"><Header /><PanelPaciente userUid={user.uid} psicologoId={userData.psicologoId} /></div>;
   }
 
-  // 4. ADMIN PURO
   if (userData.isAdmin) {
     return <div className="container"><Header /><PanelAdmin /></div>;
   }
