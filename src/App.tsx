@@ -31,7 +31,7 @@ function LoginScreen() {
 }
 
 // ==========================================
-// 2. SALA DE ESPERA (SIN ROL)
+// 2. SALA DE ESPERA
 // ==========================================
 function PantallaEspera() {
   return (
@@ -47,7 +47,7 @@ function PantallaEspera() {
 }
 
 // ==========================================
-// 3. PANTALLA DE VINCULACIÓN (PACIENTES)
+// 3. PANTALLA DE VINCULACIÓN
 // ==========================================
 function VinculacionScreen({ userUid }: any) {
   const [codigo, setCodigo] = useState("");
@@ -80,7 +80,6 @@ function VinculacionScreen({ userUid }: any) {
   return (
     <div className="container">
       <h2>🔑 Vincular con Especialista</h2>
-      <p>Felicidades, tu cuenta de paciente fue aprobada.</p>
       <p>Ingresa el código que te dio tu terapeuta:</p>
       <input 
         type="text" placeholder="Ej: PSI-1234" 
@@ -95,7 +94,7 @@ function VinculacionScreen({ userUid }: any) {
 }
 
 // ==========================================
-// 4. PANEL DEL PACIENTE (TRACKER)
+// 4. PANEL DEL PACIENTE
 // ==========================================
 function PanelPaciente({ userUid }: any) {
   const [misHabitos, setMisHabitos] = useState<any[]>([]);
@@ -160,7 +159,7 @@ function PanelPaciente({ userUid }: any) {
 }
 
 // ==========================================
-// 5. PANEL DE PSICÓLOGO (CONSULTORIO)
+// 5. PANEL DE PSICÓLOGO
 // ==========================================
 function PanelPsicologo({ userData, userUid }: any) {
   const [pacientes, setPacientes] = useState<any[]>([]); 
@@ -234,28 +233,22 @@ function PanelPsicologo({ userData, userUid }: any) {
             <div>
               <div style={{background: '#f8f9fa', padding: '20px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #e9ecef'}}>
                 <h4>Nuevo hábito para: {pacienteSeleccionado.displayName}</h4>
-                <div style={{marginBottom: '10px'}}>
-                    <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Hábito:</label>
-                    <input type="text" value={tituloHabito} onChange={(e) => setTituloHabito(e.target.value)} placeholder="Ej: Leer 20 min" style={{width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc'}} />
-                </div>
-                <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end'}}>
-                  <div>
-                    <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Meta %:</label>
-                    <input type="number" value={metaSemanal} onChange={(e) => setMetaSemanal(Number(e.target.value))} style={{width: '80px', padding: '10px', borderRadius: '5px', border: '1px solid #ccc'}} />
-                  </div>
-                  <button onClick={crearHabito} className="btn-primary" style={{flex: 1, height: '40px'}}>Agregar ➕</button>
+                <input type="text" value={tituloHabito} onChange={(e) => setTituloHabito(e.target.value)} placeholder="Hábito (Ej: Leer)" style={{width: '100%', padding: '10px', marginBottom:'10px'}} />
+                <div style={{display: 'flex', gap: '10px'}}>
+                  <input type="number" value={metaSemanal} onChange={(e) => setMetaSemanal(Number(e.target.value))} style={{width: '80px', padding: '10px'}} />
+                  <button onClick={crearHabito} className="btn-primary" style={{flex: 1}}>Agregar ➕</button>
                 </div>
               </div>
               <div style={{display: 'grid', gap: '10px'}}>
                 {habitosPaciente.map(h => {
                    const p = calcularProgreso(h.registro);
                    return (
-                    <div key={h.id} style={{border: '1px solid #eee', background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <div key={h.id} style={{border: '1px solid #eee', background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between'}}>
                       <div style={{flex: 1}}>
                         <strong>{h.titulo}</strong>
-                        <div style={{width: '100%', background: '#eee', height: '6px', marginTop: '5px', maxWidth: '200px', borderRadius: '3px'}}><div style={{width: `${p}%`, background: p >= h.metaSemanal ? '#28a745' : '#007bff', height: '100%', borderRadius: '3px'}}></div></div>
+                        <div style={{width: '100%', background: '#eee', height: '6px', marginTop: '5px', maxWidth: '200px'}}><div style={{width: `${p}%`, background: p >= h.metaSemanal ? '#28a745' : '#007bff', height: '100%'}}></div></div>
                       </div>
-                      <button onClick={() => eliminarHabito(h.id)} style={{background:'white', border:'1px solid red', borderRadius: '5px', cursor:'pointer'}}>🗑️</button>
+                      <button onClick={() => eliminarHabito(h.id)} style={{cursor: 'pointer'}}>🗑️</button>
                     </div>
                    )
                 })}
@@ -269,7 +262,7 @@ function PanelPsicologo({ userData, userUid }: any) {
 }
 
 // ==========================================
-// 6. PANEL DE ADMINISTRADOR (TABLA GLOBAL)
+// 6. PANEL DE ADMINISTRADOR
 // ==========================================
 function PanelAdmin() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
@@ -311,7 +304,7 @@ function PanelAdmin() {
                 <tr key={u.id} style={{borderBottom: '1px solid #eee'}}>
                 <td style={{padding: '10px'}}>{u.displayName}<br/><small>{u.email}</small></td>
                 <td style={{padding: '10px'}}>
-                    {u.isAdmin && <span style={{background:'gold', padding:'2px 5px', borderRadius:'4px', fontSize:'12px', marginRight:'5px'}}>ADMIN</span>}
+                    {u.isAdmin && <span style={{background:'gold', padding:'2px 5px', borderRadius:'4px', fontSize:'12px', marginRight:'5px', color:'black'}}>ADMIN</span>}
                     {u.isPsicologo && <span style={{color:'blue', marginRight:'5px'}}>Psicólogo</span>}
                     {u.isPaciente && <span style={{color:'green', marginRight:'5px'}}>Paciente</span>}
                     {!u.isPsicologo && !u.isPaciente && !u.isAdmin && <span style={{color:'red'}}>Sin Rol</span>}
@@ -334,7 +327,7 @@ function PanelAdmin() {
 }
 
 // ==========================================
-// 7. APP PRINCIPAL (CONTROL DE PESTAÑAS)
+// 7. APP PRINCIPAL
 // ==========================================
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -374,7 +367,6 @@ export default function App() {
   if (!user) return <LoginScreen />;
   if (!userData) return <div className="loading">Cargando perfil...</div>;
 
-  // HEADER COMÚN
   const Header = () => (
     <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '0 20px'}}>
       <div>
@@ -387,12 +379,10 @@ export default function App() {
     </header>
   );
 
-  // CASO 1: SOY ADMIN Y PSICÓLOGO (DOBLE ROL)
   if (userData.isAdmin && userData.isPsicologo) {
     return (
       <div className="container" style={{maxWidth: '1100px'}}>
         <Header />
-        {/* BARRA DE PESTAÑAS */}
         <div style={{display: 'flex', borderBottom: '2px solid #eee', marginBottom: '20px'}}>
           <button 
             onClick={() => setActiveTab('consultorio')}
@@ -415,35 +405,17 @@ export default function App() {
             🛠️ Administración
           </button>
         </div>
-
-        {/* CONTENIDO */}
-        {activeTab === 'consultorio' ? (
-          <PanelPsicologo userData={userData} userUid={user.uid} />
-        ) : (
-          <PanelAdmin />
-        )}
+        {activeTab === 'consultorio' ? <PanelPsicologo userData={userData} userUid={user.uid} /> : <PanelAdmin />}
       </div>
     );
   }
 
-  // CASO 2: SOLO ADMIN
-  if (userData.isAdmin) {
-    return <div className="container"><Header /><PanelAdmin /></div>;
-  }
-
-  // CASO 3: SOLO PSICÓLOGO
-  if (userData.isPsicologo) {
-    return <div className="container"><Header /><PanelPsicologo userData={userData} userUid={user.uid} /></div>;
-  }
-
-  // CASO 4: PACIENTE
+  if (userData.isAdmin) return <div className="container"><Header /><PanelAdmin /></div>;
+  if (userData.isPsicologo) return <div className="container"><Header /><PanelPsicologo userData={userData} userUid={user.uid} /></div>;
   if (userData.isPaciente) {
-    if (userData.estatus === 'pendiente' || !userData.psicologoId) {
-      return <div className="container"><Header /><VinculacionScreen userUid={user.uid} /></div>;
-    }
+    if (userData.estatus === 'pendiente' || !userData.psicologoId) return <div className="container"><Header /><VinculacionScreen userUid={user.uid} /></div>;
     return <div className="container"><Header /><PanelPaciente userUid={user.uid} /></div>;
   }
 
-  // CASO 5: SIN ROL
   return <PantallaEspera />;
 }
