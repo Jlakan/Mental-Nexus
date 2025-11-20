@@ -7,9 +7,7 @@ import {
 } from 'firebase/firestore';
 import './style.css';
 
-// ==========================================
-// 1. PANTALLA DE LOGIN
-// ==========================================
+// ---------------- LOGIN ----------------
 function LoginScreen() {
   const handleGoogleLogin = async () => {
     try {
@@ -21,7 +19,7 @@ function LoginScreen() {
 
   return (
     <div className="container login-container">
-      <h1>Mental Nexus 🧠</h1>
+      <h1>Mental Nexus 2.0 🧠</h1>
       <p>Plataforma de Terapia y Hábitos.</p>
       <button className="btn-google" onClick={handleGoogleLogin}>
         Ingresar con Google
@@ -30,9 +28,7 @@ function LoginScreen() {
   );
 }
 
-// ==========================================
-// 2. SALA DE ESPERA
-// ==========================================
+// ---------------- SALA DE ESPERA ----------------
 function PantallaEspera() {
   return (
     <div className="container">
@@ -46,9 +42,7 @@ function PantallaEspera() {
   );
 }
 
-// ==========================================
-// 3. PANTALLA DE VINCULACIÓN
-// ==========================================
+// ---------------- VINCULACIÓN ----------------
 function VinculacionScreen({ userUid }: any) {
   const [codigo, setCodigo] = useState("");
   const [error, setError] = useState("");
@@ -93,9 +87,7 @@ function VinculacionScreen({ userUid }: any) {
   );
 }
 
-// ==========================================
-// 4. PANEL DEL PACIENTE
-// ==========================================
+// ---------------- PANEL PACIENTE ----------------
 function PanelPaciente({ userUid }: any) {
   const [misHabitos, setMisHabitos] = useState<any[]>([]);
 
@@ -136,15 +128,8 @@ function PanelPaciente({ userUid }: any) {
                 <h4 style={{margin: '0 0 10px 0'}}>{habito.titulo}</h4>
                 <span style={{color: logrado ? '#28a745' : '#666', fontWeight: 'bold', fontSize: '14px'}}>{porcentaje}%</span>
               </div>
-              {/* CORRECCIÓN AQUÍ: Uso seguro de estilos */}
               <div style={{width: '100%', background: '#eee', height: '8px', borderRadius: '4px', marginBottom: '15px'}}>
-                <div style={{
-                  width: porcentaje + '%', 
-                  background: logrado ? '#28a745' : '#007bff', 
-                  height: '100%', 
-                  borderRadius: '4px', 
-                  transition: 'width 0.3s ease'
-                }}></div>
+                <div style={{width: `${porcentaje}%`, background: logrado ? '#28a745' : '#007bff', height: '100%', borderRadius: '4px', transition: 'width 0.3s ease'}}></div>
               </div>
               <div style={{display: 'flex', justifyContent: 'space-between'}}>
                 {diasSemana.map(dia => (
@@ -165,9 +150,7 @@ function PanelPaciente({ userUid }: any) {
   );
 }
 
-// ==========================================
-// 5. PANEL DE PSICÓLOGO (CORREGIDO)
-// ==========================================
+// ---------------- PANEL PSICÓLOGO ----------------
 function PanelPsicologo({ userData, userUid }: any) {
   const [pacientes, setPacientes] = useState<any[]>([]); 
   const [pacienteSeleccionado, setPacienteSeleccionado] = useState<any>(null);
@@ -253,14 +236,7 @@ function PanelPsicologo({ userData, userUid }: any) {
                     <div key={h.id} style={{border: '1px solid #eee', background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between'}}>
                       <div style={{flex: 1}}>
                         <strong>{h.titulo}</strong>
-                        <div style={{width: '100%', background: '#eee', height: '6px', marginTop: '5px', maxWidth: '200px'}}>
-                          {/* CORRECCIÓN AQUÍ: Sintaxis simplificada para evitar errores de parsing */}
-                          <div style={{
-                            width: p + '%', 
-                            background: p >= h.metaSemanal ? '#28a745' : '#007bff', 
-                            height: '100%'
-                          }}></div>
-                        </div>
+                        <div style={{width: '100%', background: '#eee', height: '6px', marginTop: '5px', maxWidth: '200px'}}><div style={{width: `${p}%`, background: p >= h.metaSemanal ? '#28a745' : '#007bff', height: '100%'}}></div></div>
                       </div>
                       <button onClick={() => eliminarHabito(h.id)} style={{cursor: 'pointer'}}>🗑️</button>
                     </div>
@@ -268,18 +244,14 @@ function PanelPsicologo({ userData, userUid }: any) {
                 })}
               </div>
             </div>
-          ) : (
-            <div style={{padding: '50px', textAlign: 'center', color: '#999', border: '2px dashed #ccc'}}>Selecciona un paciente</div>
-          )}
+          ) : <div style={{padding: '50px', textAlign: 'center', color: '#999', border: '2px dashed #ccc'}}>Selecciona un paciente</div>}
         </div>
       </div>
     </div>
   );
 }
 
-// ==========================================
-// 6. PANEL DE ADMINISTRADOR
-// ==========================================
+// ---------------- PANEL ADMIN ----------------
 function PanelAdmin() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
 
@@ -342,9 +314,7 @@ function PanelAdmin() {
   );
 }
 
-// ==========================================
-// 7. APP PRINCIPAL
-// ==========================================
+// ---------------- APP PRINCIPAL ----------------
 export default function App() {
   const [user, setUser] = useState<any>(null);
   const [userData, setUserData] = useState<any>(null);
@@ -395,43 +365,9 @@ export default function App() {
     </header>
   );
 
+  // CASO 1: ADMIN + PSICÓLOGO
   if (userData.isAdmin && userData.isPsicologo) {
     return (
       <div className="container" style={{maxWidth: '1100px'}}>
         <Header />
-        <div style={{display: 'flex', borderBottom: '2px solid #eee', marginBottom: '20px'}}>
-          <button 
-            onClick={() => setActiveTab('consultorio')}
-            style={{
-              padding: '10px 20px', cursor: 'pointer', background: 'none', border: 'none', fontSize: '16px',
-              borderBottom: activeTab === 'consultorio' ? '3px solid #007bff' : 'none',
-              color: activeTab === 'consultorio' ? '#007bff' : '#666', fontWeight: 'bold'
-            }}
-          >
-            👨‍⚕️ Mi Consultorio
-          </button>
-          <button 
-            onClick={() => setActiveTab('admin')}
-            style={{
-              padding: '10px 20px', cursor: 'pointer', background: 'none', border: 'none', fontSize: '16px',
-              borderBottom: activeTab === 'admin' ? '3px solid #343a40' : 'none',
-              color: activeTab === 'admin' ? '#343a40' : '#666', fontWeight: 'bold'
-            }}
-          >
-            🛠️ Administración
-          </button>
-        </div>
-        {activeTab === 'consultorio' ? <PanelPsicologo userData={userData} userUid={user.uid} /> : <PanelAdmin />}
-      </div>
-    );
-  }
-
-  if (userData.isAdmin) return <div className="container"><Header /><PanelAdmin /></div>;
-  if (userData.isPsicologo) return <div className="container"><Header /><PanelPsicologo userData={userData} userUid={user.uid} /></div>;
-  if (userData.isPaciente) {
-    if (userData.estatus === 'pendiente' || !userData.psicologoId) return <div className="container"><Header /><VinculacionScreen userUid={user.uid} /></div>;
-    return <div className="container"><Header /><PanelPaciente userUid={user.uid} /></div>;
-  }
-
-  return <PantallaEspera />;
-}
+        <div
