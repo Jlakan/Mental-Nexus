@@ -8,9 +8,8 @@ import {
 import './style.css';
 
 // ==========================================
-// 1. LOGIN Y REGISTRO
+// 1. PANTALLA DE LOGIN
 // ==========================================
-
 function LoginScreen() {
   const handleGoogleLogin = async () => {
     try {
@@ -23,29 +22,36 @@ function LoginScreen() {
   return (
     <div className="container login-container">
       <h1>Mental Nexus 🧠</h1>
-      <p>Plataforma de Terapia y Hábitos.</p>
+      <p style={{fontSize: '1.1rem', marginBottom: '2rem'}}>Gestión Profesional de Terapia.</p>
       <button className="btn-google" onClick={handleGoogleLogin}>
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" width="20" />
         Ingresar con Google
       </button>
     </div>
   );
 }
 
-function RegistroScreen({ user, onRegistroCompletado }: any) {
+// ==========================================
+// 2. PANTALLA DE REGISTRO (SELECCIÓN DE ROL)
+// ==========================================
+function RegistroScreen({ user }: any) {
   const [modo, setModo] = useState<'seleccion' | 'paciente' | 'terapeuta'>('seleccion');
   const [codigo, setCodigo] = useState("");
   const [error, setError] = useState("");
+  const [loadingReg, setLoadingReg] = useState(false);
 
   const registrarTerapeuta = async () => {
+    setLoadingReg(true);
     try {
-      // Crea el documento en la raíz users
+      // Sobreescribimos cualquier dato basura con un perfil limpio de psicólogo
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName,
         photoURL: user.photoURL,
         rol: 'psicologo',
-        isAuthorized: false, // Requiere aprobación del Admin
+        isAdmin: false, // Tú te cambiarás esto manual a true en Firebase
+        isAuthorized: false, // Espera a que el Admin lo apruebe
         codigoVinculacion: "PSI-" + Math.floor(1000 + Math.random() * 9000),
         createdAt: new Date()
       });
@@ -53,11 +59,13 @@ function RegistroScreen({ user, onRegistroCompletado }: any) {
     } catch (err) {
       console.error(err);
       setError("Error al registrar.");
+      setLoadingReg(false);
     }
   };
 
   const registrarPaciente = async () => {
     if (!codigo) return setError("Ingresa el código de tu terapeuta.");
+    setLoadingReg(true);
     
     try {
       // 1. Buscar al psicólogo por código
@@ -65,35 +73,35 @@ function RegistroScreen({ user, onRegistroCompletado }: any) {
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        return setError("Código no válido.");
+        setLoadingReg(false);
+        return setError("Código no válido. Pídeselo a tu terapeuta.");
       }
       const psicologoDoc = querySnapshot.docs[0];
       const psicologoId = psicologoDoc.id;
 
-      // 2. Crear "Puntero" en raíz (para que el login sepa dónde buscar)
-      // Esto es necesario porque Firebase Auth solo da el UID.
+      // 2. Crear el "Puntero" en la raíz users (para login rápido)
       await setDoc(doc(db, "users", user.uid), {
         rol: 'paciente',
-        psicologoId: psicologoId, // Referencia al padre
+        psicologoId: psicologoId, 
         email: user.email
       });
 
-      // 3. Crear Perfil REAL dentro de la colección del Psicólogo
-      // Ruta: users/{psicologoId}/pacientes/{pacienteId}
+      // 3. Crear el Perfil REAL dentro de la carpeta del Psicólogo
       await setDoc(doc(db, "users", psicologoId, "pacientes", user.uid), {
         uid: user.uid,
         displayName: user.displayName,
         email: user.email,
         photoURL: user.photoURL,
         rol: 'paciente',
-        isAuthorized: false, // Requiere aprobación del Psicólogo
+        isAuthorized: false, // El psicólogo debe aprobarlo
         createdAt: new Date()
       });
 
       window.location.reload();
     } catch (err) {
       console.error(err);
-      setError("Error al registrar o código inválido.");
+      setError("Error técnico al registrar.");
+      setLoadingReg(false);
     }
   };
 
@@ -101,56 +109,62 @@ function RegistroScreen({ user, onRegistroCompletado }: any) {
     return (
       <div className="container" style={{textAlign: 'center'}}>
         <h2>Bienvenido, {user.displayName}</h2>
-        <p>Para continuar, selecciona tu perfil:</p>
-        <div style={{display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '30px'}}>
-          <button className="btn-primary" onClick={() => setModo('paciente')} style={{background: '#10B981'}}>
+        <p>Para configurar tu cuenta, selecciona tu perfil:</p>
+        <div style={{display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '30px', flexWrap: 'wrap'}}>
+          <button className="btn-primary" onClick={() => setModo('paciente')} style={{background: '#10B981', flex: 1, minWidth: '150px'}}>
             Soy Paciente 👤
           </button>
-          <button className="btn-primary" onClick={() => setModo('terapeuta')}>
+          <button className="btn-primary" onClick={() => setModo('terapeuta')} style={{flex: 1, minWidth: '150px'}}>
             Soy Terapeuta 👨‍⚕️
           </button>
         </div>
-        <button onClick={() => signOut(auth)} className="btn-link" style={{marginTop: '20px'}}>Cancelar</button>
+        <button onClick={() => signOut(auth)} className="btn-link" style={{marginTop: '20px'}}>Cancelar / Salir</button>
       </div>
     );
   }
 
   if (modo === 'terapeuta') {
     return (
-      <div className="container">
+      <div className="container" style={{textAlign: 'center'}}>
         <h2>Registro de Terapeuta</h2>
-        <p>Se creará tu cuenta y quedarás en espera de validación por un Administrador.</p>
+        <p>Se creará tu perfil profesional.</p>
         {error && <p style={{color: 'red'}}>{error}</p>}
-        <button onClick={registrarTerapeuta} className="btn-primary">Confirmar Registro</button>
-        <button onClick={() => setModo('seleccion')} className="btn-link">Volver</button>
+        <button onClick={registrarTerapeuta} className="btn-primary" disabled={loadingReg}>
+          {loadingReg ? "Registrando..." : "Confirmar Registro"}
+        </button>
+        <button onClick={() => setModo('seleccion')} className="btn-link" style={{marginTop: '15px'}}>Volver</button>
       </div>
     );
   }
 
   return ( // Modo Paciente
-    <div className="container">
+    <div className="container" style={{textAlign: 'center'}}>
       <h2>Registro de Paciente</h2>
       <p>Ingresa el código proporcionado por tu Psicólogo:</p>
-      <input 
-        type="text" placeholder="EJ: PSI-1234" 
-        className="input-code"
-        value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())}
-      />
+      <div style={{margin: '20px 0'}}>
+        <input 
+          type="text" placeholder="EJ: PSI-1234" 
+          className="input-code"
+          value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+        />
+      </div>
       {error && <p style={{color: 'red'}}>{error}</p>}
-      <button onClick={registrarPaciente} className="btn-primary">Registrarme</button>
-      <button onClick={() => setModo('seleccion')} className="btn-link">Volver</button>
+      <button onClick={registrarPaciente} className="btn-primary" disabled={loadingReg}>
+         {loadingReg ? "Vinculando..." : "Completar Registro"}
+      </button>
+      <button onClick={() => setModo('seleccion')} className="btn-link" style={{marginTop: '15px'}}>Volver</button>
     </div>
   );
 }
 
 // ==========================================
-// 2. PANTALLA DE ESPERA (NO AUTORIZADO)
+// 3. PANTALLA DE ESPERA (NO AUTORIZADO)
 // ==========================================
 function PantallaEspera({ mensaje }: { mensaje?: string }) {
   return (
     <div className="container" style={{textAlign: 'center'}}>
       <h2 style={{color: '#F59E0B'}}>⏳ Cuenta en Revisión</h2>
-      <div style={{padding: '20px', background: '#FFFBEB', borderRadius: '12px', margin: '20px 0', color: '#B45309'}}>
+      <div style={{padding: '20px', background: '#FFFBEB', borderRadius: '12px', margin: '20px 0', color: '#B45309', border: '1px solid #FCD34D'}}>
         <p style={{margin: 0, fontWeight: 'bold'}}>
           {mensaje || "Tu cuenta está pendiente de autorización."}
         </p>
@@ -161,14 +175,11 @@ function PantallaEspera({ mensaje }: { mensaje?: string }) {
 }
 
 // ==========================================
-// 3. PANEL PACIENTE (Lee de la subcolección)
+// 4. PANEL PACIENTE
 // ==========================================
 function PanelPaciente({ userUid, psicologoId }: any) {
   const [misHabitos, setMisHabitos] = useState<any[]>([]);
 
-  // Escuchar hábitos. Nota: Los hábitos ahora vivirán dentro de la subcolección del paciente o referenciados
-  // Para simplificar la consulta, seguiremos guardando hábitos en una colección 'habitos' global pero filtrada,
-  // O podemos guardarlos dentro del paciente. Por ahora, global filtrada es más fácil de consultar.
   useEffect(() => {
     const q = query(collection(db, "habitos"), where("pacienteId", "==", userUid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -210,7 +221,7 @@ function PanelPaciente({ userUid, psicologoId }: any) {
                     padding: '4px 10px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold'
                 }}>{porcentaje}%</span>
               </div>
-              <div style={{width: '100%', background: '#F3F4F6', height: '10px', borderRadius: '5px', marginBottom: '20px'}}>
+              <div style={{width: '100%', background: '#F3F4F6', height: '10px', borderRadius: '5px', marginBottom: '20px', overflow: 'hidden'}}>
                 <div style={{width: `${porcentaje}%`, background: logrado ? '#10B981' : '#4F46E5', height: '100%', borderRadius: '5px', transition: 'width 0.5s'}}></div>
               </div>
               <div style={{display: 'flex', justifyContent: 'space-between'}}>
@@ -234,7 +245,7 @@ function PanelPaciente({ userUid, psicologoId }: any) {
 }
 
 // ==========================================
-// 4. PANEL PSICÓLOGO (Gestiona SU subcolección)
+// 5. PANEL PSICÓLOGO (Consultorio)
 // ==========================================
 function PanelPsicologo({ userData, userUid }: any) {
   const [pacientes, setPacientes] = useState<any[]>([]); 
@@ -287,7 +298,7 @@ function PanelPsicologo({ userData, userUid }: any) {
       <div style={{background: 'white', padding: '20px', borderRadius: '16px', marginBottom: '30px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <div>
             <h3 style={{margin:0, color: '#4F46E5'}}>👨‍⚕️ Mi Consultorio</h3>
-            <p style={{margin:0, fontSize:'0.9rem', color:'#6B7280'}}>Código: <strong>{userData.codigoVinculacion}</strong></p>
+            <p style={{margin:0, fontSize:'0.9rem', color:'#6B7280'}}>Código Pacientes: <strong>{userData.codigoVinculacion}</strong></p>
         </div>
       </div>
 
@@ -310,15 +321,15 @@ function PanelPsicologo({ userData, userUid }: any) {
                     <button 
                         onClick={() => autorizarPaciente(p.id, p.isAuthorized)}
                         style={{
-                            padding: '5px 10px', borderRadius: '6px', fontSize: '0.7rem', border:'none', cursor:'pointer',
+                            padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', border:'none', cursor:'pointer', fontWeight: 'bold',
                             background: p.isAuthorized ? '#D1FAE5' : '#FEE2E2',
                             color: p.isAuthorized ? '#065F46' : '#991B1B'
                         }}
                     >
-                        {p.isAuthorized ? "Activo" : "Autorizar"}
+                        {p.isAuthorized ? "ACTIVO" : "APROBAR"}
                     </button>
                 </div>
-                {!p.isAuthorized && <small style={{color: '#EF4444', display:'block', marginTop:'5px'}}>⚠️ Debe autorizar para asignar hábitos</small>}
+                {!p.isAuthorized && <small style={{color: '#EF4444', display:'block', marginTop:'5px'}}>⚠️ Autorizar para gestionar</small>}
               </div>
             ))}
           </div>
@@ -362,7 +373,7 @@ function PanelPsicologo({ userData, userUid }: any) {
 }
 
 // ==========================================
-// 5. PANEL ADMIN (Aprueba Terapeutas)
+// 6. PANEL ADMIN (Aprueba Terapeutas)
 // ==========================================
 function PanelAdmin() {
   const [terapeutas, setTerapeutas] = useState<any[]>([]);
@@ -421,7 +432,7 @@ function PanelAdmin() {
 }
 
 // ==========================================
-// 6. APP PRINCIPAL
+// 7. APP PRINCIPAL
 // ==========================================
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -447,15 +458,16 @@ export default function App() {
              const subDocRef = doc(db, "users", data.psicologoId, "pacientes", currentUser.uid);
              const subSnap = await getDoc(subDocRef);
              if (subSnap.exists()) {
-                setUserData({ ...subSnap.data(), psicologoId: data.psicologoId }); // Combinamos data
+                setUserData({ ...subSnap.data(), psicologoId: data.psicologoId }); 
              } else {
                 setUserData(data); // Fallback
              }
           } else {
-             setUserData(data); // Es admin o psicologo o registro incompleto
+             setUserData(data); 
           }
         } else {
-          setUserData(null); // No existe registro, mostrar pantalla de selección
+          // ¡NO EXISTE! Dejamos userData en null para que salga RegistroScreen
+          setUserData(null);
         }
       } else {
         setUser(null); setUserData(null);
@@ -467,13 +479,11 @@ export default function App() {
 
   if (loading) return <div className="loading">Cargando...</div>;
   
-  // Si está logueado en Google pero no tiene registro en BD -> REGISTRO
-  if (user && !userData) return <RegistroScreen user={user} />;
+  // CORRECCIÓN CRÍTICA: Si el usuario existe pero NO tiene rol (usuario zombie), forzamos registro
+  if (user && (!userData || !userData.rol)) return <RegistroScreen user={user} />;
   
-  // Si no está logueado -> LOGIN
+  // Si no está logueado
   if (!user) return <LoginScreen />;
-
-  // --- RUTEO SEGÚN ROL Y ESTADO ---
 
   const Header = () => (
     <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '0 20px'}}>
@@ -483,15 +493,13 @@ export default function App() {
   );
 
   // 1. ADMIN + PSICÓLOGO (TÚ)
-  // Asumimos que tú te pondrás manualmente rol:'admin' y rol:'psicologo' o un flag especial
-  // Para simplificar, si tienes rol 'psicologo' y un flag isAdmin: true
   if (userData.rol === 'psicologo' && userData.isAdmin) {
     return (
       <div className="container" style={{maxWidth: '1200px'}}>
         <Header />
         <div style={{display: 'flex', gap: '20px', marginBottom: '20px', borderBottom: '1px solid #eee'}}>
-            <button onClick={() => setActiveTab('consultorio')} style={{padding: '10px', borderBottom: activeTab==='consultorio'?'2px solid blue':'none'}}>Consultorio</button>
-            <button onClick={() => setActiveTab('admin')} style={{padding: '10px', borderBottom: activeTab==='admin'?'2px solid blue':'none'}}>Admin</button>
+            <button onClick={() => setActiveTab('consultorio')} style={{padding: '10px', borderBottom: activeTab==='consultorio'?'2px solid #4F46E5':'none', background:'none', border:'none', cursor:'pointer', fontWeight:'bold'}}>Consultorio</button>
+            <button onClick={() => setActiveTab('admin')} style={{padding: '10px', borderBottom: activeTab==='admin'?'2px solid #1F2937':'none', background:'none', border:'none', cursor:'pointer', fontWeight:'bold'}}>Admin</button>
         </div>
         {activeTab === 'consultorio' ? <PanelPsicologo userData={userData} userUid={user.uid} /> : <PanelAdmin />}
       </div>
