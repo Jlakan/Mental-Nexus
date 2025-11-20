@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // Quitamos 'React' que no se usaba
 import { auth, googleProvider, db } from './firebaseConfig';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { 
@@ -16,7 +16,7 @@ import {
 import './style.css';
 
 // ==========================================
-// 1. PANTALLA DE LOGIN (ENTRADA)
+// 1. PANTALLA DE LOGIN
 // ==========================================
 function LoginScreen() {
   const handleGoogleLogin = async () => {
@@ -40,9 +40,9 @@ function LoginScreen() {
 }
 
 // ==========================================
-// 2. PANTALLA DE VINCULACIÓN (PACIENTE NUEVO)
+// 2. PANTALLA DE VINCULACIÓN
 // ==========================================
-function VinculacionScreen({ userUid }) {
+function VinculacionScreen({ userUid }: any) { // Agregado ': any' para evitar error TS
   const [codigo, setCodigo] = useState("");
   const [error, setError] = useState("");
 
@@ -50,7 +50,6 @@ function VinculacionScreen({ userUid }) {
     if (!codigo) return;
 
     try {
-      // Buscamos al psicólogo dueño de ese código
       const q = query(collection(db, "users"), where("codigoVinculacion", "==", codigo));
       const querySnapshot = await getDocs(q);
 
@@ -63,7 +62,6 @@ function VinculacionScreen({ userUid }) {
       const psicologoId = psicologoDoc.id;
       const psicologoNombre = psicologoDoc.data().displayName;
 
-      // Actualizamos al paciente: Lo asignamos y lo activamos
       const pacienteRef = doc(db, "users", userUid);
       await updateDoc(pacienteRef, {
         psicologoId: psicologoId,
@@ -83,7 +81,7 @@ function VinculacionScreen({ userUid }) {
   return (
     <div className="container">
       <h2>🔐 Código de Acceso</h2>
-      <p>Ingresa el código que te dio tu psicólogo para activar tu cuenta.</p>
+      <p>Ingresa el código que te dio tu psicólogo.</p>
       <input 
         type="text" 
         placeholder="Ej: PSI-2024" 
@@ -99,20 +97,19 @@ function VinculacionScreen({ userUid }) {
 }
 
 // ==========================================
-// 3. PANEL DEL PSICÓLOGO (GESTIÓN)
+// 3. PANEL DEL PSICÓLOGO
 // ==========================================
-function PanelPsicologo({ userData, userUid }) {
-  const [pacientes, setPacientes] = useState([]);
-  const [pacienteSeleccionado, setPacienteSeleccionado] = useState(null);
+function PanelPsicologo({ userData, userUid }: any) {
+  // CORRECCIÓN IMPORTANTE: <any[]> permite que la lista reciba datos
+  const [pacientes, setPacientes] = useState<any[]>([]); 
+  const [pacienteSeleccionado, setPacienteSeleccionado] = useState<any>(null);
   
   const [tituloHabito, setTituloHabito] = useState("");
   const [metaSemanal, setMetaSemanal] = useState(80);
   const [miCodigo, setMiCodigo] = useState(userData.codigoVinculacion || "");
 
-  // Cargar pacientes asignados a mí
   useEffect(() => {
     const q = query(collection(db, "users"), where("psicologoId", "==", userUid));
-    // Usamos onSnapshot para ver si se une alguien nuevo en tiempo real
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setPacientes(lista);
@@ -179,10 +176,15 @@ function PanelPsicologo({ userData, userUid }) {
                     width: '100%', padding: '10px', 
                     background: pacienteSeleccionado?.id === paciente.id ? '#007bff' : 'white',
                     color: pacienteSeleccionado?.id === paciente.id ? 'white' : 'black',
-                    border: '1px solid #ccc', borderRadius: '5px', cursor: 'pointer', textAlign: 'left'
+                    border: '1px solid #ccc', borderRadius: '5px', cursor: 'pointer', textAlign: 'left',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                   }}
                 >
-                  {paciente.displayName}
+                  <div>
+                    <span style={{fontWeight: 'bold'}}>{paciente.displayName}</span><br/>
+                    <small style={{opacity: 0.8}}>{paciente.email}</small>
+                  </div>
+                  <span style={{fontSize: '20px'}}>👤</span>
                 </button>
               </li>
             ))}
@@ -221,10 +223,10 @@ function PanelPsicologo({ userData, userUid }) {
 }
 
 // ==========================================
-// 4. PANEL DEL PACIENTE (TRACKER)
+// 4. PANEL DEL PACIENTE
 // ==========================================
-function PanelPaciente({ userUid }) {
-  const [misHabitos, setMisHabitos] = useState([]);
+function PanelPaciente({ userUid }: any) {
+  const [misHabitos, setMisHabitos] = useState<any[]>([]); // <any[]> corrección
 
   useEffect(() => {
     const q = query(collection(db, "habitos"), where("pacienteId", "==", userUid));
@@ -235,7 +237,7 @@ function PanelPaciente({ userUid }) {
     return () => unsubscribe();
   }, [userUid]);
 
-  const toggleDia = async (habitoId, dia, estadoActual) => {
+  const toggleDia = async (habitoId: string, dia: string, estadoActual: boolean) => {
     try {
       const habitoRef = doc(db, "habitos", habitoId);
       await updateDoc(habitoRef, { [`registro.${dia}`]: !estadoActual });
@@ -244,7 +246,7 @@ function PanelPaciente({ userUid }) {
     }
   };
 
-  const calcularProgreso = (registro) => {
+  const calcularProgreso = (registro: any) => {
     const cumplidos = Object.values(registro).filter(val => val === true).length;
     return Math.round((cumplidos / 7) * 100);
   };
@@ -298,9 +300,9 @@ function PanelPaciente({ userUid }) {
 }
 
 // ==========================================
-// 5. DASHBOARD GENERAL (CONTENEDOR)
+// 5. DASHBOARD GENERAL
 // ==========================================
-function Dashboard({ userData, userUid }) {
+function Dashboard({ userData, userUid }: any) {
   return (
     <div className="container" style={{maxWidth: '900px'}}>
       <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
@@ -310,7 +312,7 @@ function Dashboard({ userData, userUid }) {
             {userData.isPsicologo ? "Psicólogo" : "Paciente"} {userData.isAdmin ? "(Admin)" : ""}
           </small>
         </div>
-        <button onClick={() => auth.signOut()} className="btn-small">Cerrar Sesión</button>
+        <button onClick={() => signOut(auth)} className="btn-small">Cerrar Sesión</button>
       </header>
       <hr />
 
@@ -324,11 +326,11 @@ function Dashboard({ userData, userUid }) {
 }
 
 // ==========================================
-// 6. APP PRINCIPAL (LÓGICA DE CONTROL)
+// 6. APP PRINCIPAL
 // ==========================================
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [userData, setUserData] = useState(null);
+  const [user, setUser] = useState<any>(null);
+  const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -338,12 +340,10 @@ export default function App() {
         setUser(currentUser);
         const docRef = doc(db, "users", currentUser.uid);
         
-        // Suscribirse a los cambios del usuario (por si le cambias el rol manualmente)
         const unsubUser = onSnapshot(docRef, async (docSnap) => {
           if (docSnap.exists()) {
             setUserData(docSnap.data());
           } else {
-            // CREAR USUARIO NUEVO
             const nuevoUsuario = {
               uid: currentUser.uid,
               email: currentUser.email,
@@ -373,19 +373,13 @@ export default function App() {
   }, []);
 
   if (loading) return <div className="loading">Cargando sistema... ☕</div>;
-
-  // 1. No logueado
   if (!user) return <LoginScreen />;
-
-  // 2. Logueado pero sin datos
   if (!userData) return <div className="loading">Preparando perfil...</div>;
 
-  // 3. Si es PSICÓLOGO
   if (userData.isPsicologo === true) {
     return <Dashboard userData={userData} userUid={user.uid} />;
   }
 
-  // 4. Si es PACIENTE
   if (userData.isPaciente === true) {
     if (userData.estatus === 'pendiente') {
       return <VinculacionScreen userUid={user.uid} />;
@@ -393,12 +387,11 @@ export default function App() {
     return <Dashboard userData={userData} userUid={user.uid} />;
   }
 
-  // 5. Fallback
   return (
     <div className="container">
       <h2>Cuenta sin Rol</h2>
       <p>Tu usuario no tiene permisos asignados.</p>
-      <button onClick={() => auth.signOut()} className="btn-small">Salir</button>
+      <button onClick={() => signOut(auth)} className="btn-small">Salir</button>
     </div>
   );
 }
