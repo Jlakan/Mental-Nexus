@@ -97,17 +97,23 @@ function VinculacionScreen({ userUid }: any) { // Agregado ': any' para evitar e
 }
 
 // ==========================================
-// 3. PANEL DEL PSICÓLOGO
+// 3. PANEL DEL PSICÓLOGO (CON MONITOR DE PROGRESO)
 // ==========================================
+// Asegúrate de tener deleteDoc en los imports de firestore arriba
+import { deleteDoc } from 'firebase/firestore'; 
+
 function PanelPsicologo({ userData, userUid }: any) {
-  // CORRECCIÓN IMPORTANTE: <any[]> permite que la lista reciba datos
   const [pacientes, setPacientes] = useState<any[]>([]); 
   const [pacienteSeleccionado, setPacienteSeleccionado] = useState<any>(null);
   
+  // Nuevo estado para ver los hábitos del paciente seleccionado
+  const [habitosPaciente, setHabitosPaciente] = useState<any[]>([]);
+
   const [tituloHabito, setTituloHabito] = useState("");
   const [metaSemanal, setMetaSemanal] = useState(80);
   const [miCodigo, setMiCodigo] = useState(userData.codigoVinculacion || "");
 
+  // 1. Cargar lista de Pacientes
   useEffect(() => {
     const q = query(collection(db, "users"), where("psicologoId", "==", userUid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -116,6 +122,22 @@ function PanelPsicologo({ userData, userUid }: any) {
     });
     return () => unsubscribe();
   }, [userUid]);
+
+  // 2. Cargar hábitos CUANDO selecciono un paciente
+  useEffect(() => {
+    if (!pacienteSeleccionado) {
+      setHabitosPaciente([]);
+      return;
+    }
+
+    // Escuchamos los hábitos de ESTE paciente específico
+    const q = query(collection(db, "habitos"), where("pacienteId", "==", pacienteSeleccionado.id));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setHabitosPaciente(lista);
+    });
+    return () => unsubscribe();
+  }, [pacienteSeleccionado]);
 
   const generarCodigo = async () => {
     const nuevoCodigo = "PSI-" + Math.floor(1000 + Math.random() * 9000);
@@ -142,12 +164,26 @@ function PanelPsicologo({ userData, userUid }: any) {
         createdAt: new Date(),
         registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false }
       });
-      alert(`Hábito asignado a ${pacienteSeleccionado.displayName}`);
-      setTituloHabito("");
+      setTituloHabito(""); // Limpiar campo
     } catch (error) {
       console.error("Error:", error);
       alert("No se pudo guardar el hábito");
     }
+  };
+
+  const eliminarHabito = async (habitoId: string) => {
+    if(!confirm("¿Borrar este hábito?")) return;
+    try {
+      await deleteDoc(doc(db, "habitos", habitoId));
+    } catch (error) {
+      console.error("Error al borrar:", error);
+    }
+  };
+
+  // Función auxiliar para calcular progreso visual
+  const calcularProgreso = (registro: any) => {
+    const cumplidos = Object.values(registro).filter(val => val === true).length;
+    return Math.round((cumplidos / 7) * 100);
   };
 
   return (
@@ -164,9 +200,10 @@ function PanelPsicologo({ userData, userUid }: any) {
       </div>
 
       <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
+        
+        {/* COLUMNA 1: LISTA DE PACIENTES */}
         <div style={{flex: 1, minWidth: '250px', borderRight: '1px solid #eee'}}>
           <h4>Mis Pacientes ({pacientes.length})</h4>
-          {pacientes.length === 0 && <p style={{color: '#999'}}>Sin pacientes aún.</p>}
           <ul style={{listStyle: 'none', padding: 0}}>
             {pacientes.map(paciente => (
               <li key={paciente.id} style={{marginBottom: '10px'}}>
@@ -191,37 +228,76 @@ function PanelPsicologo({ userData, userUid }: any) {
           </ul>
         </div>
 
-        <div style={{flex: 1, minWidth: '250px'}}>
+        {/* COLUMNA 2: DETALLES DEL PACIENTE */}
+        <div style={{flex: 2, minWidth: '300px'}}>
           {pacienteSeleccionado ? (
-            <div style={{background: '#f9f9f9', padding: '15px', borderRadius: '8px'}}>
-              <h4>Nuevo hábito para: {pacienteSeleccionado.displayName}</h4>
-              <label>Hábito:</label>
-              <input 
-                type="text" 
-                value={tituloHabito}
-                onChange={(e) => setTituloHabito(e.target.value)}
-                placeholder="Ej: Leer 20 min"
-                style={{width: '100%', padding: '8px', marginBottom: '10px'}}
-              />
-              <label>Meta de éxito (%):</label>
-              <input 
-                type="number" 
-                value={metaSemanal}
-                onChange={(e) => setMetaSemanal(Number(e.target.value))}
-                style={{width: '60px', padding: '8px'}}
-              /> %
-              <br/>
-              <button onClick={crearHabito} className="btn-primary" style={{marginTop: '10px'}}>Guardar</button>
+            <div>
+               {/* FORMULARIO CREAR */}
+              <div style={{background: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '20px'}}>
+                <h4>Nuevo hábito para: {pacienteSeleccionado.displayName}</h4>
+                <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end'}}>
+                  <div style={{flex: 1}}>
+                    <label style={{fontSize: '12px'}}>Hábito:</label>
+                    <input 
+                      type="text" 
+                      value={tituloHabito}
+                      onChange={(e) => setTituloHabito(e.target.value)}
+                      placeholder="Ej: Leer 20 min"
+                      style={{width: '100%', padding: '8px'}}
+                    />
+                  </div>
+                  <div style={{width: '80px'}}>
+                    <label style={{fontSize: '12px'}}>Meta (%):</label>
+                    <input 
+                      type="number" 
+                      value={metaSemanal}
+                      onChange={(e) => setMetaSemanal(Number(e.target.value))}
+                      style={{width: '100%', padding: '8px'}}
+                    />
+                  </div>
+                  <button onClick={crearHabito} className="btn-primary" style={{marginBottom: '2px'}}>Agregar</button>
+                </div>
+              </div>
+
+              {/* LISTA DE PROGRESO */}
+              <h4>📊 Progreso Actual</h4>
+              {habitosPaciente.length === 0 && <p style={{color: '#999'}}>Este paciente no tiene hábitos asignados.</p>}
+              
+              <div style={{display: 'grid', gap: '10px'}}>
+                {habitosPaciente.map(habito => {
+                   const porcentaje = calcularProgreso(habito.registro);
+                   return (
+                    <div key={habito.id} style={{border: '1px solid #eee', padding: '10px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                      <div style={{flex: 1}}>
+                        <strong>{habito.titulo}</strong>
+                        <div style={{width: '100%', background: '#eee', height: '6px', borderRadius: '3px', marginTop: '5px', maxWidth: '200px'}}>
+                          <div style={{width: `${porcentaje}%`, background: porcentaje >= habito.metaSemanal ? '#28a745' : '#007bff', height: '100%', borderRadius: '3px'}}></div>
+                        </div>
+                        <small style={{color: '#666'}}>Logrado: {porcentaje}% (Meta: {habito.metaSemanal}%)</small>
+                      </div>
+                      <button 
+                        onClick={() => eliminarHabito(habito.id)}
+                        style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px'}}
+                        title="Eliminar hábito"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                   )
+                })}
+              </div>
+
             </div>
           ) : (
-            <p style={{color: '#999', marginTop: '20px'}}>Selecciona un paciente &larr;</p>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#999', border: '2px dashed #eee', borderRadius: '10px'}}>
+              <p>⬅ Selecciona un paciente de la lista</p>
+            </div>
           )}
         </div>
       </div>
     </div>
   );
 }
-
 // ==========================================
 // 4. PANEL DEL PACIENTE
 // ==========================================
