@@ -97,23 +97,18 @@ function VinculacionScreen({ userUid }: any) { // Agregado ': any' para evitar e
 }
 
 // ==========================================
-// 3. PANEL DEL PSICÓLOGO (CON MONITOR DE PROGRESO)
+// 3. PANEL DEL PSICÓLOGO (DISEÑO CORREGIDO)
 // ==========================================
-// Asegúrate de tener deleteDoc en los imports de firestore arriba
-import { deleteDoc } from 'firebase/firestore'; 
+import { deleteDoc } from 'firebase/firestore'; // Asegúrate que esto siga arriba en los imports
 
 function PanelPsicologo({ userData, userUid }: any) {
   const [pacientes, setPacientes] = useState<any[]>([]); 
   const [pacienteSeleccionado, setPacienteSeleccionado] = useState<any>(null);
-  
-  // Nuevo estado para ver los hábitos del paciente seleccionado
   const [habitosPaciente, setHabitosPaciente] = useState<any[]>([]);
-
   const [tituloHabito, setTituloHabito] = useState("");
   const [metaSemanal, setMetaSemanal] = useState(80);
   const [miCodigo, setMiCodigo] = useState(userData.codigoVinculacion || "");
 
-  // 1. Cargar lista de Pacientes
   useEffect(() => {
     const q = query(collection(db, "users"), where("psicologoId", "==", userUid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -123,14 +118,11 @@ function PanelPsicologo({ userData, userUid }: any) {
     return () => unsubscribe();
   }, [userUid]);
 
-  // 2. Cargar hábitos CUANDO selecciono un paciente
   useEffect(() => {
     if (!pacienteSeleccionado) {
       setHabitosPaciente([]);
       return;
     }
-
-    // Escuchamos los hábitos de ESTE paciente específico
     const q = query(collection(db, "habitos"), where("pacienteId", "==", pacienteSeleccionado.id));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -145,16 +137,14 @@ function PanelPsicologo({ userData, userUid }: any) {
       const userRef = doc(db, "users", userUid);
       await updateDoc(userRef, { codigoVinculacion: nuevoCodigo });
       setMiCodigo(nuevoCodigo);
-      alert(`¡Código generado! Compártelo: ${nuevoCodigo}`);
+      alert(`¡Código generado! ${nuevoCodigo}`);
     } catch (error) {
       console.error("Error:", error);
-      alert("Error al guardar código");
     }
   };
 
   const crearHabito = async () => {
     if (!tituloHabito || !pacienteSeleccionado) return;
-
     try {
       await addDoc(collection(db, "habitos"), {
         titulo: tituloHabito,
@@ -164,10 +154,10 @@ function PanelPsicologo({ userData, userUid }: any) {
         createdAt: new Date(),
         registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false }
       });
-      setTituloHabito(""); // Limpiar campo
+      setTituloHabito(""); 
     } catch (error) {
       console.error("Error:", error);
-      alert("No se pudo guardar el hábito");
+      alert("No se pudo guardar");
     }
   };
 
@@ -180,7 +170,6 @@ function PanelPsicologo({ userData, userUid }: any) {
     }
   };
 
-  // Función auxiliar para calcular progreso visual
   const calcularProgreso = (registro: any) => {
     const cumplidos = Object.values(registro).filter(val => val === true).length;
     return Math.round((cumplidos / 7) * 100);
@@ -188,37 +177,39 @@ function PanelPsicologo({ userData, userUid }: any) {
 
   return (
     <div style={{textAlign: 'left'}}>
-      <div style={{background: '#e3f2fd', padding: '15px', borderRadius: '8px', marginBottom: '20px'}}>
-        <h3>👨‍⚕️ Panel de Gestión</h3>
+      {/* HEADER DEL PANEL */}
+      <div style={{background: '#e3f2fd', padding: '20px', borderRadius: '12px', marginBottom: '25px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)'}}>
+        <h3 style={{marginTop: 0, color: '#0d47a1'}}>👨‍⚕️ Panel de Gestión</h3>
         {miCodigo ? (
-          <p style={{fontSize: '18px'}}>
-            Código para pacientes: <strong style={{background: 'white', padding: '5px 10px', borderRadius: '5px', border: '1px dashed #333'}}>{miCodigo}</strong>
+          <p style={{fontSize: '16px', margin: 0}}>
+            Código para pacientes: <strong style={{background: 'white', padding: '6px 12px', borderRadius: '6px', border: '1px dashed #0d47a1', marginLeft: '10px', color: '#0d47a1'}}>{miCodigo}</strong>
           </p>
         ) : (
           <button onClick={generarCodigo} className="btn-primary" style={{width: 'auto'}}>Generar Código Ahora 🎲</button>
         )}
       </div>
 
-      <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
+      <div style={{display: 'flex', gap: '25px', flexWrap: 'wrap'}}>
         
         {/* COLUMNA 1: LISTA DE PACIENTES */}
-        <div style={{flex: 1, minWidth: '250px', borderRight: '1px solid #eee'}}>
-          <h4>Mis Pacientes ({pacientes.length})</h4>
+        <div style={{flex: 1, minWidth: '280px'}}>
+          <h4 style={{color: '#555'}}>Mis Pacientes ({pacientes.length})</h4>
           <ul style={{listStyle: 'none', padding: 0}}>
             {pacientes.map(paciente => (
               <li key={paciente.id} style={{marginBottom: '10px'}}>
                 <button 
                   onClick={() => setPacienteSeleccionado(paciente)}
                   style={{
-                    width: '100%', padding: '10px', 
+                    width: '100%', padding: '15px', 
                     background: pacienteSeleccionado?.id === paciente.id ? '#007bff' : 'white',
-                    color: pacienteSeleccionado?.id === paciente.id ? 'white' : 'black',
-                    border: '1px solid #ccc', borderRadius: '5px', cursor: 'pointer', textAlign: 'left',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                    color: pacienteSeleccionado?.id === paciente.id ? 'white' : '#333',
+                    border: '1px solid #e0e0e0', borderRadius: '10px', cursor: 'pointer', textAlign: 'left',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.03)', transition: 'all 0.2s'
                   }}
                 >
                   <div>
-                    <span style={{fontWeight: 'bold'}}>{paciente.displayName}</span><br/>
+                    <span style={{fontWeight: 'bold', fontSize: '15px'}}>{paciente.displayName}</span><br/>
                     <small style={{opacity: 0.8}}>{paciente.email}</small>
                   </div>
                   <span style={{fontSize: '20px'}}>👤</span>
@@ -228,56 +219,70 @@ function PanelPsicologo({ userData, userUid }: any) {
           </ul>
         </div>
 
-        {/* COLUMNA 2: DETALLES DEL PACIENTE */}
-        <div style={{flex: 2, minWidth: '300px'}}>
+        {/* COLUMNA 2: DETALLES Y FORMULARIO */}
+        <div style={{flex: 2, minWidth: '320px'}}>
           {pacienteSeleccionado ? (
             <div>
-               {/* FORMULARIO CREAR */}
-              <div style={{background: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '20px'}}>
-                <h4>Nuevo hábito para: {pacienteSeleccionado.displayName}</h4>
-                <div style={{display: 'flex', gap: '10px', alignItems: 'flex-end'}}>
-                  <div style={{flex: 1}}>
-                    <label style={{fontSize: '12px'}}>Hábito:</label>
-                    <input 
-                      type="text" 
-                      value={tituloHabito}
-                      onChange={(e) => setTituloHabito(e.target.value)}
-                      placeholder="Ej: Leer 20 min"
-                      style={{width: '100%', padding: '8px'}}
-                    />
-                  </div>
-                  <div style={{width: '80px'}}>
-                    <label style={{fontSize: '12px'}}>Meta (%):</label>
+               {/* FORMULARIO CREAR (AQUÍ ESTÁ LA CORRECCIÓN DE DISEÑO) */}
+              <div style={{background: '#f8f9fa', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #e9ecef'}}>
+                <h4 style={{marginTop: 0, color: '#495057'}}>Nuevo hábito para: {pacienteSeleccionado.displayName}</h4>
+                
+                {/* Fila 1: Nombre del Hábito */}
+                <div style={{marginBottom: '15px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#495057', fontSize: '14px'}}>
+                    Nombre del Hábito:
+                  </label>
+                  <input 
+                    type="text" 
+                    value={tituloHabito}
+                    onChange={(e) => setTituloHabito(e.target.value)}
+                    placeholder="Ej: Leer 20 min"
+                    style={{width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ced4da', boxSizing: 'border-box'}} 
+                  />
+                </div>
+
+                {/* Fila 2: Meta y Botón */}
+                <div style={{display: 'flex', gap: '15px', alignItems: 'flex-end'}}>
+                  <div style={{width: '100px'}}>
+                    <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#495057', fontSize: '14px'}}>
+                      Meta (%):
+                    </label>
                     <input 
                       type="number" 
                       value={metaSemanal}
                       onChange={(e) => setMetaSemanal(Number(e.target.value))}
-                      style={{width: '100%', padding: '8px'}}
+                      style={{width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ced4da', boxSizing: 'border-box'}}
                     />
                   </div>
-                  <button onClick={crearHabito} className="btn-primary" style={{marginBottom: '2px'}}>Agregar</button>
+                  <button 
+                    onClick={crearHabito} 
+                    className="btn-primary" 
+                    style={{flex: 1, height: '42px', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center'}}
+                  >
+                    Agregar Hábito ➕
+                  </button>
                 </div>
               </div>
 
               {/* LISTA DE PROGRESO */}
-              <h4>📊 Progreso Actual</h4>
-              {habitosPaciente.length === 0 && <p style={{color: '#999'}}>Este paciente no tiene hábitos asignados.</p>}
+              <h4 style={{color: '#555'}}>📊 Progreso Actual</h4>
+              {habitosPaciente.length === 0 && <div style={{padding: '30px', background: '#f9f9f9', borderRadius: '10px', textAlign: 'center', color: '#999'}}>Este paciente no tiene hábitos asignados.</div>}
               
-              <div style={{display: 'grid', gap: '10px'}}>
+              <div style={{display: 'grid', gap: '15px'}}>
                 {habitosPaciente.map(habito => {
                    const porcentaje = calcularProgreso(habito.registro);
                    return (
-                    <div key={habito.id} style={{border: '1px solid #eee', padding: '10px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                    <div key={habito.id} style={{border: '1px solid #eee', background: 'white', padding: '15px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 4px rgba(0,0,0,0.02)'}}>
                       <div style={{flex: 1}}>
-                        <strong>{habito.titulo}</strong>
-                        <div style={{width: '100%', background: '#eee', height: '6px', borderRadius: '3px', marginTop: '5px', maxWidth: '200px'}}>
-                          <div style={{width: `${porcentaje}%`, background: porcentaje >= habito.metaSemanal ? '#28a745' : '#007bff', height: '100%', borderRadius: '3px'}}></div>
+                        <strong style={{fontSize: '16px', color: '#333'}}>{habito.titulo}</strong>
+                        <div style={{width: '100%', background: '#e9ecef', height: '8px', borderRadius: '4px', marginTop: '8px', maxWidth: '250px'}}>
+                          <div style={{width: `${porcentaje}%`, background: porcentaje >= habito.metaSemanal ? '#28a745' : '#007bff', height: '100%', borderRadius: '4px', transition: 'width 0.5s'}}></div>
                         </div>
-                        <small style={{color: '#666'}}>Logrado: {porcentaje}% (Meta: {habito.metaSemanal}%)</small>
+                        <small style={{color: '#666', display: 'block', marginTop: '5px'}}>Logrado: <strong>{porcentaje}%</strong> (Meta: {habito.metaSemanal}%)</small>
                       </div>
                       <button 
                         onClick={() => eliminarHabito(habito.id)}
-                        style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px'}}
+                        style={{background: 'white', border: '1px solid #ffcdd2', color: '#c62828', cursor: 'pointer', padding: '8px 12px', borderRadius: '6px', transition: 'all 0.2s'}}
                         title="Eliminar hábito"
                       >
                         🗑️
@@ -289,8 +294,8 @@ function PanelPsicologo({ userData, userUid }: any) {
 
             </div>
           ) : (
-            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#999', border: '2px dashed #eee', borderRadius: '10px'}}>
-              <p>⬅ Selecciona un paciente de la lista</p>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: '#999', border: '2px dashed #e0e0e0', borderRadius: '12px', background: '#fafafa'}}>
+              <p>⬅ Selecciona un paciente para ver sus detalles</p>
             </div>
           )}
         </div>
