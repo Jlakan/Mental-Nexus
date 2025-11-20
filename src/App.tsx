@@ -32,15 +32,13 @@ function LoginScreen() {
 }
 
 // ==========================================
-// 2. REGISTRO (SELECCIÓN DE ROL)
+// 2. REGISTRO
 // ==========================================
 function RegistroScreen({ user }: any) {
   const [modo, setModo] = useState<'seleccion' | 'paciente' | 'terapeuta'>('seleccion');
   const [codigo, setCodigo] = useState("");
   const [error, setError] = useState("");
   const [loadingReg, setLoadingReg] = useState(false);
-
-  // Estado para el nombre personalizado en el registro
   const [nombrePersonalizado, setNombrePersonalizado] = useState(user.displayName || "");
 
   const registrarTerapeuta = async () => {
@@ -49,7 +47,7 @@ function RegistroScreen({ user }: any) {
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         email: user.email,
-        displayName: nombrePersonalizado, // Usamos el nombre editado
+        displayName: nombrePersonalizado,
         photoURL: user.photoURL,
         rol: 'psicologo',
         isAdmin: false,
@@ -88,7 +86,7 @@ function RegistroScreen({ user }: any) {
 
       await setDoc(doc(db, "users", psicologoId, "pacientes", user.uid), {
         uid: user.uid,
-        displayName: nombrePersonalizado, // Usamos el nombre editado
+        displayName: nombrePersonalizado,
         email: user.email,
         photoURL: user.photoURL,
         rol: 'paciente',
@@ -104,7 +102,6 @@ function RegistroScreen({ user }: any) {
     }
   };
 
-  // Input para el nombre (Componente reutilizable)
   const InputNombre = () => (
     <div style={{marginBottom: '20px', textAlign: 'left'}}>
         <label style={{display:'block', marginBottom:'5px', fontWeight:'bold', fontSize:'0.9rem'}}>¿Cómo quieres llamarte?</label>
@@ -122,9 +119,7 @@ function RegistroScreen({ user }: any) {
       <div className="container" style={{textAlign: 'center'}}>
         <h2>Bienvenido</h2>
         <p>Configura tu perfil inicial.</p>
-        
         <InputNombre />
-
         <p>Selecciona tu rol:</p>
         <div style={{display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '20px', flexWrap: 'wrap'}}>
           <button className="btn-primary" onClick={() => setModo('paciente')} style={{background: '#10B981', flex: 1, minWidth: '150px'}}>
@@ -153,7 +148,7 @@ function RegistroScreen({ user }: any) {
     );
   }
 
-  return ( // Modo Paciente
+  return (
     <div className="container" style={{textAlign: 'center'}}>
       <h2>Registro de Paciente</h2>
       <p>Nombre visible: <strong>{nombrePersonalizado}</strong></p>
@@ -175,8 +170,63 @@ function RegistroScreen({ user }: any) {
 }
 
 // ==========================================
-// 3. PANTALLA DE ESPERA
+// 3. COMPONENTES DE UI (HEADER Y PANTALLAS)
 // ==========================================
+
+// --- HEADER MOVIDO AFUERA DE APP PARA EVITAR EL ERROR DE FOCO ---
+const Header = ({ userData, setUserData, user }: any) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [tempName, setTempName] = useState(userData.displayName);
+
+    const guardarNombre = async () => {
+        if(!tempName.trim()) return setIsEditing(false);
+        try {
+            // 1. Actualizar en raíz
+            await updateDoc(doc(db, "users", user.uid), { displayName: tempName });
+            
+            // 2. Si es paciente, actualizar en la subcolección del psicólogo
+            if(userData.rol === 'paciente' && userData.psicologoId) {
+                await updateDoc(doc(db, "users", userData.psicologoId, "pacientes", user.uid), { displayName: tempName });
+            }
+            
+            setUserData({...userData, displayName: tempName});
+            setIsEditing(false);
+        } catch(e) { console.error(e); }
+    };
+
+    return (
+        <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', padding: '0 10px'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
+                <div style={{width: '40px', height: '40px', background: '#4F46E5', borderRadius: '10px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem'}}>
+                    {userData.displayName ? userData.displayName.charAt(0) : "?"}
+                </div>
+                <div>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                        {isEditing ? (
+                            <div style={{display: 'flex', gap: '5px'}}>
+                                <input 
+                                    type="text" value={tempName} onChange={(e) => setTempName(e.target.value)} 
+                                    style={{padding: '5px', fontSize: '1rem', width: '200px'}} autoFocus
+                                />
+                                <button onClick={guardarNombre} style={{background:'#10B981', color:'white', border:'none', borderRadius:'5px', cursor:'pointer'}}>OK</button>
+                            </div>
+                        ) : (
+                            <>
+                                <h2 style={{margin: 0, fontSize: '1.2rem'}}>{userData.displayName}</h2>
+                                <button onClick={() => setIsEditing(true)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'1rem', opacity: 0.5}} title="Editar nombre">✏️</button>
+                            </>
+                        )}
+                    </div>
+                    <div style={{fontSize: '0.8rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px'}}>
+                        {userData.isAdmin && "Administrador • "}{userData.rol === 'psicologo' && "Terapeuta"}{userData.rol === 'paciente' && "Paciente"}
+                    </div>
+                </div>
+            </div>
+            <button onClick={() => signOut(auth)} className="btn-small" style={{color: '#EF4444', fontWeight: 'bold'}}>Cerrar Sesión</button>
+        </header>
+    );
+};
+
 function PantallaEspera({ mensaje }: { mensaje?: string }) {
   return (
     <div className="container" style={{textAlign: 'center'}}>
@@ -191,9 +241,6 @@ function PantallaEspera({ mensaje }: { mensaje?: string }) {
   );
 }
 
-// ==========================================
-// 4. PANEL PACIENTE
-// ==========================================
 function PanelPaciente({ userUid, psicologoId }: any) {
   const [misHabitos, setMisHabitos] = useState<any[]>([]);
 
@@ -261,9 +308,6 @@ function PanelPaciente({ userUid, psicologoId }: any) {
   );
 }
 
-// ==========================================
-// 5. PANEL PSICÓLOGO
-// ==========================================
 function PanelPsicologo({ userData, userUid }: any) {
   const [pacientes, setPacientes] = useState<any[]>([]); 
   const [pacienteSeleccionado, setPacienteSeleccionado] = useState<any>(null);
@@ -271,7 +315,6 @@ function PanelPsicologo({ userData, userUid }: any) {
   const [tituloHabito, setTituloHabito] = useState("");
   const [metaSemanal, setMetaSemanal] = useState(80);
 
-  // Cargar pacientes desde subcolección
   useEffect(() => {
     const colRef = collection(db, "users", userUid, "pacientes");
     const unsubscribe = onSnapshot(colRef, (snap) => {
@@ -281,7 +324,6 @@ function PanelPsicologo({ userData, userUid }: any) {
     return () => unsubscribe();
   }, [userUid]);
 
-  // Cargar hábitos
   useEffect(() => {
     if (!pacienteSeleccionado) { setHabitosPaciente([]); return; }
     const q = query(collection(db, "habitos"), where("pacienteId", "==", pacienteSeleccionado.id));
@@ -319,7 +361,6 @@ function PanelPsicologo({ userData, userUid }: any) {
       </div>
 
       <div style={{display: 'flex', gap: '30px', flexWrap: 'wrap'}}>
-        {/* LISTA PACIENTES */}
         <div style={{flex: 1, minWidth: '300px'}}>
           <h4 style={{textTransform:'uppercase', fontSize:'0.8rem', color:'#9CA3AF'}}>Pacientes Registrados</h4>
           <div style={{display: 'grid', gap: '10px'}}>
@@ -351,7 +392,6 @@ function PanelPsicologo({ userData, userUid }: any) {
           </div>
         </div>
 
-        {/* DETALLES */}
         <div style={{flex: 2, minWidth: '320px'}}>
           {pacienteSeleccionado ? (
             <div style={{animation: 'fadeIn 0.5s'}}>
@@ -388,9 +428,6 @@ function PanelPsicologo({ userData, userUid }: any) {
   );
 }
 
-// ==========================================
-// 6. PANEL ADMIN
-// ==========================================
 function PanelAdmin() {
   const [terapeutas, setTerapeutas] = useState<any[]>([]);
 
@@ -407,6 +444,7 @@ function PanelAdmin() {
   return (
     <div className="container" style={{maxWidth: '1000px'}}>
       <h2>🛠️ Administración de Terapeutas</h2>
+      <p>Aprueba el acceso a los profesionales.</p>
       <div style={{background: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginTop: '20px'}}>
         <table style={{width: '100%'}}>
             <thead style={{background: '#F9FAFB'}}>
@@ -446,7 +484,7 @@ function PanelAdmin() {
 }
 
 // ==========================================
-// 7. APP PRINCIPAL
+// 4. APP PRINCIPAL
 // ==========================================
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -459,6 +497,7 @@ export default function App() {
       setLoading(true);
       if (currentUser) {
         setUser(currentUser);
+        
         let docRef = doc(db, "users", currentUser.uid);
         let docSnap = await getDoc(docRef);
 
@@ -490,65 +529,13 @@ export default function App() {
   if (user && (!userData || !userData.rol)) return <RegistroScreen user={user} />;
   if (!user) return <LoginScreen />;
 
-  // HEADER CON FUNCIÓN DE EDITAR NOMBRE
-  const Header = () => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [tempName, setTempName] = useState(userData.displayName);
-
-    const guardarNombre = async () => {
-        if(!tempName.trim()) return setIsEditing(false);
-        try {
-            // 1. Actualizar en raíz
-            await updateDoc(doc(db, "users", user.uid), { displayName: tempName });
-            
-            // 2. Si es paciente, actualizar en la subcolección del psicólogo
-            if(userData.rol === 'paciente' && userData.psicologoId) {
-                await updateDoc(doc(db, "users", userData.psicologoId, "pacientes", user.uid), { displayName: tempName });
-            }
-            
-            // Actualizar estado local visualmente
-            setUserData({...userData, displayName: tempName});
-            setIsEditing(false);
-        } catch(e) { console.error(e); }
-    };
-
-    return (
-        <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', padding: '0 10px'}}>
-            <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
-                <div style={{width: '40px', height: '40px', background: '#4F46E5', borderRadius: '10px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem'}}>
-                    {userData.displayName ? userData.displayName.charAt(0) : "?"}
-                </div>
-                <div>
-                    <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-                        {isEditing ? (
-                            <div style={{display: 'flex', gap: '5px'}}>
-                                <input 
-                                    type="text" value={tempName} onChange={(e) => setTempName(e.target.value)} 
-                                    style={{padding: '5px', fontSize: '1rem', width: '200px'}} autoFocus
-                                />
-                                <button onClick={guardarNombre} style={{background:'#10B981', color:'white', border:'none', borderRadius:'5px', cursor:'pointer'}}>OK</button>
-                            </div>
-                        ) : (
-                            <>
-                                <h2 style={{margin: 0, fontSize: '1.2rem'}}>{userData.displayName}</h2>
-                                <button onClick={() => setIsEditing(true)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'1rem', opacity: 0.5}} title="Editar nombre">✏️</button>
-                            </>
-                        )}
-                    </div>
-                    <div style={{fontSize: '0.8rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px'}}>
-                        {userData.isAdmin && "Administrador • "}{userData.rol === 'psicologo' && "Terapeuta"}{userData.rol === 'paciente' && "Paciente"}
-                    </div>
-                </div>
-            </div>
-            <button onClick={() => signOut(auth)} className="btn-small" style={{color: '#EF4444', fontWeight: 'bold'}}>Cerrar Sesión</button>
-        </header>
-    );
-  };
+  // Pasamos setUserData y user al Header que ahora vive afuera
+  const commonHeader = <Header userData={userData} setUserData={setUserData} user={user} />;
 
   if (userData.rol === 'psicologo' && userData.isAdmin) {
     return (
       <div className="container" style={{maxWidth: '1200px'}}>
-        <Header />
+        {commonHeader}
         <div style={{display: 'flex', gap: '20px', marginBottom: '20px', borderBottom: '1px solid #eee'}}>
             <button onClick={() => setActiveTab('consultorio')} style={{padding: '10px', borderBottom: activeTab==='consultorio'?'2px solid #4F46E5':'none', background:'none', border:'none', cursor:'pointer', fontWeight:'bold'}}>Consultorio</button>
             <button onClick={() => setActiveTab('admin')} style={{padding: '10px', borderBottom: activeTab==='admin'?'2px solid #1F2937':'none', background:'none', border:'none', cursor:'pointer', fontWeight:'bold'}}>Admin</button>
@@ -560,16 +547,16 @@ export default function App() {
 
   if (userData.rol === 'psicologo') {
     if (!userData.isAuthorized) return <PantallaEspera mensaje="Esperando aprobación del Administrador." />;
-    return <div className="container"><Header /><PanelPsicologo userData={userData} userUid={user.uid} /></div>;
+    return <div className="container">{commonHeader}<PanelPsicologo userData={userData} userUid={user.uid} /></div>;
   }
 
   if (userData.rol === 'paciente') {
     if (!userData.isAuthorized) return <PantallaEspera mensaje="Esperando que tu Psicólogo te autorice." />;
-    return <div className="container"><Header /><PanelPaciente userUid={user.uid} psicologoId={userData.psicologoId} /></div>;
+    return <div className="container">{commonHeader}<PanelPaciente userUid={user.uid} psicologoId={userData.psicologoId} /></div>;
   }
 
   if (userData.isAdmin) {
-    return <div className="container"><Header /><PanelAdmin /></div>;
+    return <div className="container">{commonHeader}<PanelAdmin /></div>;
   }
 
   return <div className="container">Error: Rol no identificado.</div>;
