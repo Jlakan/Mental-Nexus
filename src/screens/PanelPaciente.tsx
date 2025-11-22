@@ -36,13 +36,13 @@ export function PanelPaciente({ userUid }: any) {
   };
 
   const toggleDia = async (habitoId: string, dia: string, estadoActual: boolean) => {
-    // Efecto de sonido o vibración podría ir aquí
     try {
       const habitoRef = doc(db, "habitos", habitoId);
       await updateDoc(habitoRef, { [`registro.${dia}`]: !estadoActual });
     } catch (error) { console.error(error); }
   };
 
+  // ESTA ES LA FUNCIÓN CORRECTA
   const calcularProgresoHabito = (registro: any) => {
     const cumplidos = Object.values(registro).filter(val => val === true).length;
     return Math.round((cumplidos / 7) * 100);
@@ -50,7 +50,7 @@ export function PanelPaciente({ userUid }: any) {
 
   const diasSemana = ["L", "M", "X", "J", "V", "S", "D"];
 
-  // Cálculo de la "Carrera Semanal" (Promedio de todos los hábitos)
+  // Cálculo de la "Carrera Semanal"
   const promedioSemanal = misHabitos.length > 0 
     ? Math.round(misHabitos.reduce((acc, h) => acc + calcularProgresoHabito(h.registro), 0) / misHabitos.length)
     : 0;
@@ -101,7 +101,8 @@ export function PanelPaciente({ userUid }: any) {
 
       <div style={{display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
         {misHabitos.map(habito => {
-          const porcentaje = calcularProgreso(habito.registro);
+          // CORRECCIÓN AQUÍ: Usamos el nombre correcto de la función
+          const porcentaje = calcularProgresoHabito(habito.registro);
           const logrado = porcentaje >= habito.metaSemanal;
           
           return (
