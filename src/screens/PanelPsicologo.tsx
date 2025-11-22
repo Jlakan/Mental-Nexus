@@ -9,7 +9,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const [tituloHabito, setTituloHabito] = useState("");
   const [metaSemanal, setMetaSemanal] = useState(80);
 
-  // 1. Cargar pacientes desde MI SUBCOLECCIÓN
+  // 1. Cargar pacientes
   useEffect(() => {
     const colRef = collection(db, "users", userUid, "pacientes");
     const unsubscribe = onSnapshot(colRef, (snap) => {
@@ -19,7 +19,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
     return () => unsubscribe();
   }, [userUid]);
 
-  // 2. Cargar hábitos del paciente seleccionado
+  // 2. Cargar hábitos
   useEffect(() => {
     if (!pacienteSeleccionado) { setHabitosPaciente([]); return; }
     const q = query(collection(db, "habitos"), where("pacienteId", "==", pacienteSeleccionado.id));
@@ -49,77 +49,139 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
   return (
     <div style={{textAlign: 'left'}}>
-      <div style={{background: 'white', padding: '20px', borderRadius: '16px', marginBottom: '30px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+      {/* HEADER DEL PANEL */}
+      <div style={{
+          background: 'var(--bg-card)', 
+          padding: '20px', borderRadius: '16px', marginBottom: '30px', 
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', 
+          border: 'var(--glass-border)',
+          display:'flex', justifyContent:'space-between', alignItems:'center'
+      }}>
         <div>
-            <h3 style={{margin:0, color: '#4F46E5'}}>👨‍⚕️ Mi Consultorio</h3>
-            <p style={{margin:0, fontSize:'0.9rem', color:'#6B7280'}}>Código Pacientes: <strong>{userData.codigoVinculacion}</strong></p>
+            <h3 style={{margin:0, color: 'var(--primary)', fontSize:'1.5rem'}}>👨‍⚕️ Mi Consultorio</h3>
+            <p style={{margin:0, fontSize:'0.9rem', color:'var(--text-muted)'}}>
+                Código Pacientes: <strong style={{color:'white', letterSpacing:'1px'}}>{userData.codigoVinculacion}</strong>
+            </p>
         </div>
       </div>
 
       <div style={{display: 'flex', gap: '30px', flexWrap: 'wrap'}}>
-        {/* LISTA PACIENTES */}
+        
+        {/* --- LISTA PACIENTES --- */}
         <div style={{flex: 1, minWidth: '300px'}}>
-          <h4 style={{textTransform:'uppercase', fontSize:'0.8rem', color:'#9CA3AF'}}>Pacientes Registrados</h4>
+          <h4 style={{textTransform:'uppercase', fontSize:'0.8rem', color:'var(--secondary)', letterSpacing:'2px', marginBottom:'15px'}}>
+            Pacientes Registrados
+          </h4>
+          
           <div style={{display: 'grid', gap: '10px'}}>
             {pacientes.map(p => (
-              <div key={p.id} style={{
-                  background: pacienteSeleccionado?.id === p.id ? '#EEF2FF' : 'white',
-                  border: pacienteSeleccionado?.id === p.id ? '1px solid #4F46E5' : '1px solid #E5E7EB',
-                  padding: '15px', borderRadius: '12px', transition: 'all 0.2s'
+              <div key={p.id} 
+                onClick={() => p.isAuthorized && setPacienteSeleccionado(p)}
+                style={{
+                  // Diseño condicional: Si está seleccionado se ilumina, si no es oscuro
+                  background: pacienteSeleccionado?.id === p.id ? 'rgba(6, 182, 212, 0.15)' : 'rgba(255,255,255,0.03)',
+                  border: pacienteSeleccionado?.id === p.id ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.05)',
+                  padding: '15px', borderRadius: '12px', transition: 'all 0.2s', cursor: p.isAuthorized ? 'pointer' : 'default'
                 }}>
+                
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                    <div onClick={() => p.isAuthorized && setPacienteSeleccionado(p)} style={{cursor: p.isAuthorized ? 'pointer' : 'default', flex: 1}}>
-                        <div style={{fontWeight: 'bold', color: '#374151'}}>{p.displayName}</div>
-                        <div style={{fontSize: '0.8rem', color: '#6B7280'}}>{p.email}</div>
+                    <div style={{flex: 1}}>
+                        <div style={{fontWeight: 'bold', color: 'white', fontSize:'1.1rem'}}>{p.displayName}</div>
+                        <div style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>{p.email}</div>
                     </div>
                     <button 
-                        onClick={() => autorizarPaciente(p.id, p.isAuthorized)}
+                        onClick={(e) => { e.stopPropagation(); autorizarPaciente(p.id, p.isAuthorized); }}
                         style={{
-                            padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', border:'none', cursor:'pointer', fontWeight: 'bold',
-                            background: p.isAuthorized ? '#D1FAE5' : '#FEE2E2',
-                            color: p.isAuthorized ? '#065F46' : '#991B1B'
+                            padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', border:'none', cursor:'pointer', fontWeight: 'bold',
+                            background: p.isAuthorized ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                            color: p.isAuthorized ? 'var(--secondary)' : '#EF4444',
+                            border: p.isAuthorized ? '1px solid var(--secondary)' : '1px solid #EF4444'
                         }}
                     >
                         {p.isAuthorized ? "ACTIVO" : "APROBAR"}
                     </button>
                 </div>
-                {!p.isAuthorized && <small style={{color: '#EF4444', display:'block', marginTop:'5px'}}>⚠️ Autorizar para gestionar</small>}
+                {!p.isAuthorized && <small style={{color: '#EF4444', display:'block', marginTop:'5px', fontSize:'0.75rem'}}>⚠️ Autorización requerida</small>}
               </div>
             ))}
           </div>
         </div>
 
-        {/* DETALLES */}
+        {/* --- ÁREA DE TRABAJO (DERECHA) --- */}
         <div style={{flex: 2, minWidth: '320px'}}>
           {pacienteSeleccionado ? (
             <div style={{animation: 'fadeIn 0.5s'}}>
-              <div style={{background: 'white', padding: '20px', borderRadius: '16px', marginBottom: '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.03)'}}>
-                <h4>Asignar a: {pacienteSeleccionado.displayName}</h4>
-                <div style={{display: 'flex', gap: '10px'}}>
-                    <input type="text" value={tituloHabito} onChange={(e) => setTituloHabito(e.target.value)} placeholder="Hábito" style={{flex:2}} />
-                    <input type="number" value={metaSemanal} onChange={(e) => setMetaSemanal(Number(e.target.value))} placeholder="%" style={{width:'60px'}} />
-                    <button onClick={crearHabito} className="btn-primary" style={{flex:1}}>Agregar</button>
+              
+              {/* FORMULARIO DE ASIGNACIÓN */}
+              <div style={{
+                  background: 'var(--bg-card)', padding: '25px', borderRadius: '16px', marginBottom: '20px', 
+                  border: 'var(--glass-border)', boxShadow: '0 4px 30px rgba(0,0,0,0.3)'
+                }}>
+                <h4 style={{color: 'white', marginTop:0}}>Asignar a: <span style={{color:'var(--primary)'}}>{pacienteSeleccionado.displayName}</span></h4>
+                
+                <div style={{display: 'flex', gap: '15px', alignItems:'center'}}>
+                    <div style={{flex: 3}}>
+                        <input 
+                            type="text" 
+                            value={tituloHabito} 
+                            onChange={(e) => setTituloHabito(e.target.value)} 
+                            placeholder="Nombre del Hábito..." 
+                            style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white'}}
+                        />
+                    </div>
+                    <div style={{flex: 1}}>
+                        <input 
+                            type="number" 
+                            value={metaSemanal} 
+                            onChange={(e) => setMetaSemanal(Number(e.target.value))} 
+                            placeholder="%" 
+                            style={{textAlign:'center', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white'}}
+                        />
+                    </div>
+                    <button onClick={crearHabito} className="btn-primary" style={{height:'42px', display:'flex', alignItems:'center', justifyContent:'center'}}>
+                        AGREGAR
+                    </button>
                 </div>
               </div>
               
+              {/* LISTA DE HÁBITOS ASIGNADOS */}
               <div style={{display: 'grid', gap: '10px'}}>
                 {habitosPaciente.map(h => {
                    const p = calcularProgreso(h.registro);
                    return (
-                    <div key={h.id} style={{background: 'white', padding: '15px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border:'1px solid #F3F4F6'}}>
+                    <div key={h.id} style={{
+                        background: 'rgba(255,255,255,0.03)', padding: '15px 20px', borderRadius: '12px', 
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                        border: '1px solid rgba(255,255,255,0.05)'
+                    }}>
                       <div style={{flex: 1}}>
-                        <strong>{h.titulo}</strong>
-                        <div style={{width: '100%', background: '#F3F4F6', height: '6px', marginTop: '5px', maxWidth: '200px', borderRadius:'3px'}}>
-                            <div style={{width: `${p}%`, background: p >= h.metaSemanal ? '#10B981' : '#4F46E5', height: '100%', borderRadius:'3px'}}></div>
+                        <strong style={{color:'white', fontSize:'1.1rem', letterSpacing:'0.5px'}}>{h.titulo}</strong>
+                        
+                        {/* Barra de progreso */}
+                        <div style={{width: '100%', background: 'rgba(0,0,0,0.5)', height: '6px', marginTop: '8px', maxWidth: '250px', borderRadius:'3px', overflow:'hidden'}}>
+                            <div style={{width: `${p}%`, background: p >= h.metaSemanal ? 'var(--secondary)' : 'var(--primary)', height: '100%', borderRadius:'3px', boxShadow: p >= h.metaSemanal ? '0 0 10px var(--secondary)' : 'none'}}></div>
                         </div>
+                        <small style={{color: 'var(--text-muted)', fontSize:'0.75rem', marginTop:'5px', display:'block'}}>Meta: {h.metaSemanal}%</small>
                       </div>
-                      <button onClick={() => eliminarHabito(h.id)} style={{background:'none', border:'none', cursor:'pointer'}}>🗑️</button>
+                      
+                      <button onClick={() => eliminarHabito(h.id)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'1.2rem', opacity:0.7, transition:'opacity 0.2s'}} title="Eliminar">
+                        🗑️
+                      </button>
                     </div>
                    )
                 })}
               </div>
             </div>
-          ) : <div style={{padding: '50px', textAlign: 'center', color: '#9CA3AF', border: '2px dashed #E5E7EB', borderRadius: '16px'}}>Selecciona un paciente activo</div>}
+          ) : (
+            // ESTADO VACÍO
+            <div style={{
+                padding: '60px', textAlign: 'center', color: 'var(--text-muted)', 
+                border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '16px', background: 'rgba(0,0,0,0.2)'
+            }}>
+              <p style={{fontSize:'2rem', margin:0}}>👈</p>
+              <p>Selecciona un paciente de la lista para ver su expediente.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

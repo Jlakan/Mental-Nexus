@@ -3,7 +3,6 @@ import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/f
 import { db } from '../services/firebaseConfig';
 
 // --- UTILIDADES DE FECHA ---
-// Función para obtener el ID de la semana (ej: "2023-W42")
 const getWeekId = (date: Date) => {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -23,11 +22,9 @@ export function PanelPaciente({ userUid }: any) {
   const [puntosTotales, setPuntosTotales] = useState(0);
   const [nivel, setNivel] = useState(1);
   
-  // Estado del Viaje en el Tiempo (0 = Hoy, -1 = Semana pasada, etc.)
   const [semanaOffset, setSemanaOffset] = useState(0);
   const currentWeekId = getWeekId(new Date());
 
-  // Configuración del juego
   const XP_POR_HABITO = 100;
   const PUNTOS_NIVEL = 1000;
 
@@ -35,23 +32,16 @@ export function PanelPaciente({ userUid }: any) {
     const q = query(collection(db, "habitos"), where("pacienteId", "==", userUid));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const lista = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return { id: doc.id, ...data };
-      });
+      const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // 1. VERIFICAR Y ARCHIVAR SEMANAS VIEJAS AUTOMÁTICAMENTE
+      // Lógica de auto-archivado (se mantiene igual)
       lista.forEach(async (h: any) => {
-        // Si el hábito no tiene marca de semana o es vieja, archivamos
         if (h.ultimaSemanaRegistrada !== currentWeekId) {
-            // Guardamos el registro actual en el historial
             const registroAArchivar = h.registro || { L: false, M: false, X: false, J: false, V: false, S: false, D: false };
             const historialNuevo = {
                 ...h.historial,
                 [h.ultimaSemanaRegistrada || "antiguo"]: registroAArchivar
             };
-
-            // Reiniciamos la semana
             await updateDoc(doc(db, "habitos", h.id), {
                 registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false },
                 historial: historialNuevo,
@@ -66,30 +56,23 @@ export function PanelPaciente({ userUid }: any) {
     return () => unsubscribe();
   }, [userUid, currentWeekId]);
 
-  // Calcular puntaje (Incluyendo el historial para que no pierda sus niveles)
   const calcularGamificacion = (habitos: any[]) => {
     let totalChecks = 0;
     habitos.forEach(h => {
-        // 1. Sumar semana actual
         totalChecks += Object.values(h.registro).filter(v => v === true).length;
-        
-        // 2. Sumar historial
         if (h.historial) {
             Object.values(h.historial).forEach((semana: any) => {
                 totalChecks += Object.values(semana).filter(v => v === true).length;
             });
         }
     });
-    
     const xp = totalChecks * XP_POR_HABITO;
     setPuntosTotales(xp);
     setNivel(Math.floor(xp / PUNTOS_NIVEL) + 1);
   };
 
   const toggleDia = async (habitoId: string, dia: string, estadoActual: boolean) => {
-    // Solo permitimos editar si estamos en la semana actual (offset 0)
     if (semanaOffset !== 0) return alert("No puedes modificar el pasado ⏳");
-
     try {
       const habitoRef = doc(db, "habitos", habitoId);
       await updateDoc(habitoRef, { [`registro.${dia}`]: !estadoActual });
@@ -102,58 +85,83 @@ export function PanelPaciente({ userUid }: any) {
     return Math.round((cumplidos / 7) * 100);
   };
 
-  // Función para obtener los datos a mostrar (Actual o Histórico)
   const getDatosVisualizacion = (habito: any) => {
       if (semanaOffset === 0) {
-          return habito.registro; // Semana actual
+          return habito.registro;
       } else {
-          // Buscamos en el historial
-          // Para hacerlo real, necesitaríamos calcular el ID de la semana pasada.
-          // Simplificación: Por ahora solo mostramos si existe en historial, sino vacío.
-          // (En producción usaríamos librerías de fecha para restar semanas exactas al currentWeekId)
+          // Simplificación visual para historial
           return { L: false, M: false, X: false, J: false, V: false, S: false, D: false }; 
       }
   };
 
   const diasSemana = ["L", "M", "X", "J", "V", "S", "D"];
+  
+  // Promedio para la barra principal
+  const promedioSemanal = misHabitos.length > 0 
+    ? Math.round(misHabitos.reduce((acc, h) => acc + calcularProgresoHabito(h.registro), 0) / misHabitos.length)
+    : 0;
 
   return (
     <div style={{textAlign: 'left', paddingBottom: '50px'}}>
       
-      {/* --- HUD GAMIFICACIÓN --- */}
-      <div style={{background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)', borderRadius: '20px', padding: '25px', color: 'white', marginBottom: '30px', boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4)'}}>
-        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+      {/* --- HUD GAMIFICACIÓN (Tarjeta Gradiente) --- */}
+      <div style={{
+          background: 'linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%)', 
+          borderRadius: '20px', padding: '25px', color: 'white', marginBottom: '30px', 
+          boxShadow: '0 0 20px rgba(6, 182, 212, 0.4)', border: '1px solid rgba(255,255,255,0.2)'
+      }}>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'15px'}}>
             <div>
-                <h2 style={{margin: 0, fontSize: '2rem', color: 'white'}}>Nivel {nivel}</h2>
-                <p style={{margin: 0, opacity: 0.8}}>{puntosTotales} XP Totales</p>
+                <h2 style={{margin: 0, fontSize: '2.5rem', color: 'white', fontFamily: 'Rajdhani, sans-serif'}}>Nivel {nivel}</h2>
+                <p style={{margin: 0, opacity: 0.9, fontSize:'0.9rem', fontWeight:'bold'}}>⚡ {puntosTotales} XP Totales</p>
             </div>
-            <div style={{fontSize: '3rem'}}>🏆</div>
+            <div style={{fontSize: '3rem', filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.5))'}}>🏆</div>
+        </div>
+
+        {/* BARRA DE CARRERA GLOBAL */}
+        <div style={{background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '15px', backdropFilter: 'blur(5px)'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 'bold', textTransform:'uppercase', letterSpacing:'1px'}}>
+                <span>🚀 Meta de la Semana</span>
+                <span>{promedioSemanal}%</span>
+            </div>
+            <div style={{width: '100%', background: 'rgba(255,255,255,0.1)', height: '10px', borderRadius: '10px', overflow: 'hidden'}}>
+                <div style={{
+                    width: `${promedioSemanal}%`, 
+                    background: 'var(--secondary)', 
+                    height: '100%', borderRadius: '10px', 
+                    transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: '0 0 15px var(--secondary)'
+                }}></div>
+            </div>
         </div>
       </div>
 
-      {/* --- CONTROL DE TIEMPO --- */}
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: '#F3F4F6', padding: '10px', borderRadius: '12px'}}>
+      {/* --- CONTROL DE TIEMPO (Cápsula Oscura) --- */}
+      <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', 
+          background: 'rgba(15, 23, 42, 0.6)', padding: '10px 15px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)'
+      }}>
         <button 
             onClick={() => setSemanaOffset(semanaOffset - 1)}
-            style={{border:'none', background:'white', width:'40px', height:'40px', borderRadius:'50%', cursor:'pointer', boxShadow:'0 2px 4px rgba(0,0,0,0.1)'}}
+            style={{background:'rgba(255,255,255,0.1)', border:'none', width:'40px', height:'40px', borderRadius:'50%', cursor:'pointer', color:'white', fontSize:'1.2rem'}}
         >⬅</button>
         
         <div style={{textAlign:'center'}}>
-            <span style={{fontWeight:'bold', color:'#374151'}}>{getWeekLabel(semanaOffset)}</span>
+            <span style={{fontWeight:'bold', color:'var(--primary)', fontSize:'1rem', textTransform:'uppercase', letterSpacing:'1px'}}>{getWeekLabel(semanaOffset)}</span>
             <br/>
-            <small style={{fontSize:'0.7rem', color:'#9CA3AF'}}>
-                {semanaOffset === 0 ? "Editando" : "Modo Lectura"}
+            <small style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>
+                {semanaOffset === 0 ? "● EN TIEMPO REAL" : "○ MODO HISTORIAL"}
             </small>
         </div>
 
         <button 
             onClick={() => semanaOffset < 0 && setSemanaOffset(semanaOffset + 1)}
             style={{
-                border:'none', background: semanaOffset === 0 ? '#E5E7EB' : 'white', 
+                background: semanaOffset === 0 ? 'transparent' : 'rgba(255,255,255,0.1)', 
+                border: semanaOffset === 0 ? '1px solid rgba(255,255,255,0.1)' : 'none',
                 width:'40px', height:'40px', borderRadius:'50%', 
                 cursor: semanaOffset === 0 ? 'default' : 'pointer', 
-                boxShadow: semanaOffset === 0 ? 'none' : '0 2px 4px rgba(0,0,0,0.1)',
-                opacity: semanaOffset === 0 ? 0.5 : 1
+                color: semanaOffset === 0 ? 'gray' : 'white', fontSize:'1.2rem'
             }}
         >➡</button>
       </div>
@@ -161,62 +169,53 @@ export function PanelPaciente({ userUid }: any) {
       {/* --- LISTA DE HÁBITOS --- */}
       <div style={{display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
         {misHabitos.map(habito => {
-          // Determinamos qué datos mostrar (Presente vs Pasado)
-          // Nota: La lógica de historial visual exacta requiere calcular el ID de semana "2023-W46" restando días.
-          // Para este ejemplo, si no es la semana actual, mostramos un mensaje de "Historial no disponible" si no hay datos exactos,
-          // o mostramos el registro si estamos en semana 0.
-          
-          let datosMostrar = habito.registro;
-          let esHistorial = false;
-
-          if (semanaOffset < 0) {
-              esHistorial = true;
-              // Aquí intentamos buscar en el historial. 
-              // Como simplificación, si hay historial, mostramos el último guardado para demo
-              const llavesHistorial = habito.historial ? Object.keys(habito.historial).sort() : [];
-              if (llavesHistorial.length > 0) {
-                  // Mostramos la última semana guardada como ejemplo de "pasado"
-                  datosMostrar = habito.historial[llavesHistorial[llavesHistorial.length - 1]]; 
-              } else {
-                  datosMostrar = { L: false, M: false, X: false, J: false, V: false, S: false, D: false };
-              }
-          }
-
+          const datosMostrar = getDatosVisualizacion(habito);
           const porcentaje = calcularProgresoHabito(datosMostrar);
           const logrado = porcentaje >= habito.metaSemanal;
+          const esHistorial = semanaOffset < 0;
           
           return (
             <div key={habito.id} style={{
-                background: 'white', padding: '25px', borderRadius: '20px', 
-                boxShadow: logrado ? '0 4px 20px rgba(16, 185, 129, 0.15)' : '0 4px 6px rgba(0,0,0,0.05)', 
-                border: logrado ? '2px solid #10B981' : '1px solid #F3F4F6',
+                background: 'var(--bg-card)', padding: '25px', borderRadius: '20px', 
+                border: logrado ? '1px solid var(--secondary)' : '1px solid rgba(255,255,255,0.05)',
                 position: 'relative', overflow: 'hidden',
-                opacity: esHistorial ? 0.8 : 1 // Visualmente distinto si es historial
+                opacity: esHistorial ? 0.7 : 1,
+                boxShadow: logrado ? '0 0 20px rgba(16, 185, 129, 0.1)' : 'none'
             }}>
               
-              {logrado && <div style={{position: 'absolute', top: 0, right: 0, background: '#10B981', color: 'white', padding: '5px 15px', borderBottomLeftRadius: '15px', fontSize: '0.8rem', fontWeight: 'bold'}}>¡META CUMPLIDA!</div>}
+              {logrado && <div style={{position: 'absolute', top: 0, right: 0, background: 'var(--secondary)', color: 'black', padding: '5px 15px', borderBottomLeftRadius: '15px', fontSize: '0.7rem', fontWeight: 'bold'}}>¡META CUMPLIDA!</div>}
 
               <div style={{marginBottom: '20px'}}>
-                <h4 style={{margin: '0 0 5px 0', fontSize: '1.2rem', color: '#1F2937'}}>{habito.titulo}</h4>
+                <h4 style={{margin: '0 0 5px 0', fontSize: '1.3rem', color: 'white', letterSpacing:'0.5px'}}>{habito.titulo}</h4>
                 <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-                    <span style={{fontSize: '0.85rem', color: '#6B7280'}}>Recompensa:</span>
-                    <span style={{background: '#EFF6FF', color: '#4F46E5', padding: '2px 8px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold'}}>+{XP_POR_HABITO} XP</span>
+                    <span style={{fontSize: '0.75rem', color: 'var(--text-muted)', textTransform:'uppercase'}}>Recompensa:</span>
+                    <span style={{background: 'rgba(6, 182, 212, 0.1)', border:'1px solid var(--primary)', color: 'var(--primary)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold'}}>+{XP_POR_HABITO} XP</span>
                 </div>
               </div>
 
-              {/* Botones de Días */}
-              <div style={{display: 'flex', justifyContent: 'space-between', background: '#F9FAFB', padding: '10px', borderRadius: '12px'}}>
+              {/* BOTONERA DE DÍAS */}
+              <div style={{display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '12px'}}>
                 {diasSemana.map(dia => (
-                  <div key={dia} style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px'}}>
-                      <span style={{fontSize: '0.7rem', color: '#9CA3AF', fontWeight: 'bold'}}>{dia}</span>
+                  <div key={dia} style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'}}>
+                      <span style={{fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold'}}>{dia}</span>
                       <button 
                         onClick={() => toggleDia(habito.id, dia, datosMostrar[dia])}
                         style={{
-                          width: '32px', height: '32px', borderRadius: '10px', border: 'none', cursor: esHistorial ? 'not-allowed' : 'pointer', 
-                          background: datosMostrar[dia] ? (esHistorial ? '#6B7280' : '#10B981') : '#E5E7EB', 
-                          color: 'white',
+                          width: '32px', height: '32px', borderRadius: '8px', border: 'none', 
+                          cursor: esHistorial ? 'not-allowed' : 'pointer', 
+                          
+                          // LÓGICA VISUAL DE BOTONES
+                          background: datosMostrar[dia] 
+                            ? 'var(--secondary)' // Encendido (Verde Neón)
+                            : 'rgba(255,255,255,0.05)', // Apagado (Casi transparente)
+                          
+                          color: datosMostrar[dia] ? 'black' : 'white',
+                          border: datosMostrar[dia] ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                          boxShadow: datosMostrar[dia] ? '0 0 10px var(--secondary)' : 'none',
+                          
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          boxShadow: datosMostrar[dia] ? '0 4px 10px rgba(0,0,0,0.1)' : 'none'
+                          transition: 'all 0.2s ease',
+                          transform: datosMostrar[dia] ? 'scale(1.1)' : 'scale(1)',
                         }}
                       >
                         {datosMostrar[dia] && "✓"}
@@ -225,12 +224,12 @@ export function PanelPaciente({ userUid }: any) {
                 ))}
               </div>
               
-              {/* Mini barra */}
+              {/* MINI BARRA PROGRESO */}
               <div style={{marginTop: '15px', display: 'flex', alignItems: 'center', gap: '10px'}}>
-                <div style={{flex: 1, height: '6px', background: '#F3F4F6', borderRadius: '3px'}}>
-                    <div style={{width: `${porcentaje}%`, background: esHistorial ? '#6B7280' : '#4F46E5', height: '100%', borderRadius: '3px', transition: 'width 0.5s'}}></div>
+                <div style={{flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px'}}>
+                    <div style={{width: `${porcentaje}%`, background: 'var(--primary)', height: '100%', borderRadius: '2px', transition: 'width 0.5s', boxShadow: '0 0 5px var(--primary)'}}></div>
                 </div>
-                <span style={{fontSize: '0.8rem', color: '#6B7280', fontWeight: 'bold'}}>{porcentaje}%</span>
+                <span style={{fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 'bold'}}>{porcentaje}%</span>
               </div>
 
             </div>
