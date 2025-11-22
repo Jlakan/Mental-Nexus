@@ -6,8 +6,10 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const [pacientes, setPacientes] = useState<any[]>([]); 
   const [pacienteSeleccionado, setPacienteSeleccionado] = useState<any>(null);
   const [habitosPaciente, setHabitosPaciente] = useState<any[]>([]);
+  
+  // Formulario
   const [tituloHabito, setTituloHabito] = useState("");
-  const [metaSemanal, setMetaSemanal] = useState(80);
+  const [frecuenciaMeta, setFrecuenciaMeta] = useState(7); // Por defecto 7 días (diario)
 
   // 1. Cargar pacientes
   useEffect(() => {
@@ -34,18 +36,25 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
   const crearHabito = async () => {
     if (!tituloHabito || !pacienteSeleccionado) return;
+    
     await addDoc(collection(db, "habitos"), {
-      titulo: tituloHabito, pacienteId: pacienteSeleccionado.id, asignadoPor: userUid, metaSemanal: metaSemanal,
-      createdAt: new Date(), registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false }
+      titulo: tituloHabito, 
+      pacienteId: pacienteSeleccionado.id, 
+      asignadoPor: userUid, 
+      frecuenciaMeta: frecuenciaMeta, // <--- NUEVO CAMPO: Días objetivo (1-7)
+      createdAt: new Date(), 
+      registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false }
     });
     setTituloHabito(""); 
+    setFrecuenciaMeta(7); // Reset a diario
   };
 
   const eliminarHabito = async (id: string) => {
     if(confirm("¿Borrar?")) await deleteDoc(doc(db, "habitos", id));
   };
 
-  const calcularProgreso = (reg: any) => Math.round((Object.values(reg).filter(v => v === true).length / 7) * 100);
+  // Nueva función de cálculo: Cuenta días completados
+  const contarDiasCompletados = (reg: any) => Object.values(reg).filter(v => v === true).length;
 
   return (
     <div style={{textAlign: 'left'}}>
@@ -91,11 +100,9 @@ export function PanelPsicologo({ userData, userUid }: any) {
                     <button 
                         onClick={(e) => { e.stopPropagation(); autorizarPaciente(p.id, p.isAuthorized); }}
                         style={{
-                            padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', cursor:'pointer', fontWeight: 'bold',
+                            padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', border:'none', cursor:'pointer', fontWeight: 'bold',
                             background: p.isAuthorized ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                             color: p.isAuthorized ? 'var(--secondary)' : '#EF4444',
-                            // CORRECCIÓN: Única definición de border
-                            border: p.isAuthorized ? '1px solid var(--secondary)' : '1px solid #EF4444'
                         }}
                     >
                         {p.isAuthorized ? "ACTIVO" : "APROBAR"}
@@ -112,15 +119,15 @@ export function PanelPsicologo({ userData, userUid }: any) {
           {pacienteSeleccionado ? (
             <div style={{animation: 'fadeIn 0.5s'}}>
               
-              {/* FORMULARIO DE ASIGNACIÓN */}
+              {/* FORMULARIO DE ASIGNACIÓN (MODIFICADO PARA DÍAS) */}
               <div style={{
                   background: 'var(--bg-card)', padding: '25px', borderRadius: '16px', marginBottom: '20px', 
                   border: 'var(--glass-border)', boxShadow: '0 4px 30px rgba(0,0,0,0.3)'
                 }}>
                 <h4 style={{color: 'white', marginTop:0}}>Asignar a: <span style={{color:'var(--primary)'}}>{pacienteSeleccionado.displayName}</span></h4>
                 
-                <div style={{display: 'flex', gap: '15px', alignItems:'center'}}>
-                    <div style={{flex: 3}}>
+                <div style={{display: 'flex', gap: '15px', alignItems:'center', flexWrap: 'wrap'}}>
+                    <div style={{flex: 2, minWidth: '200px'}}>
                         <input 
                             type="text" 
                             value={tituloHabito} 
@@ -129,16 +136,27 @@ export function PanelPsicologo({ userData, userUid }: any) {
                             style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white'}}
                         />
                     </div>
-                    <div style={{flex: 1}}>
-                        <input 
-                            type="number" 
-                            value={metaSemanal} 
-                            onChange={(e) => setMetaSemanal(Number(e.target.value))} 
-                            placeholder="%" 
-                            style={{textAlign:'center', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white'}}
-                        />
+                    <div style={{flex: 1, minWidth: '150px'}}>
+                        {/* SELECTOR DE FRECUENCIA */}
+                        <select 
+                            value={frecuenciaMeta} 
+                            onChange={(e) => setFrecuenciaMeta(Number(e.target.value))}
+                            style={{
+                                width: '100%', padding: '12px', borderRadius: '8px', 
+                                background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid rgba(255,255,255,0.2)',
+                                fontSize: '0.9rem'
+                            }}
+                        >
+                            <option value={1}>1 día / sem</option>
+                            <option value={2}>2 días / sem</option>
+                            <option value={3}>3 días / sem</option>
+                            <option value={4}>4 días / sem</option>
+                            <option value={5}>5 días / sem</option>
+                            <option value={6}>6 días / sem</option>
+                            <option value={7}>Diario (7 días)</option>
+                        </select>
                     </div>
-                    <button onClick={crearHabito} className="btn-primary" style={{height:'42px', display:'flex', alignItems:'center', justifyContent:'center'}}>
+                    <button onClick={crearHabito} className="btn-primary" style={{height:'42px', minWidth: '100px', display:'flex', alignItems:'center', justifyContent:'center'}}>
                         AGREGAR
                     </button>
                 </div>
@@ -147,7 +165,11 @@ export function PanelPsicologo({ userData, userUid }: any) {
               {/* LISTA DE HÁBITOS ASIGNADOS */}
               <div style={{display: 'grid', gap: '10px'}}>
                 {habitosPaciente.map(h => {
-                   const p = calcularProgreso(h.registro);
+                   const diasLogrados = contarDiasCompletados(h.registro);
+                   const meta = h.frecuenciaMeta || 7; // Fallback a 7 si es antiguo
+                   const porcentaje = Math.min(100, Math.round((diasLogrados / meta) * 100));
+                   const cumplido = diasLogrados >= meta;
+
                    return (
                     <div key={h.id} style={{
                         background: 'rgba(255,255,255,0.03)', padding: '15px 20px', borderRadius: '12px', 
@@ -155,15 +177,28 @@ export function PanelPsicologo({ userData, userUid }: any) {
                         border: '1px solid rgba(255,255,255,0.05)'
                     }}>
                       <div style={{flex: 1}}>
-                        <strong style={{color:'white', fontSize:'1.1rem', letterSpacing:'0.5px'}}>{h.titulo}</strong>
-                        
-                        <div style={{width: '100%', background: 'rgba(0,0,0,0.5)', height: '6px', marginTop: '8px', maxWidth: '250px', borderRadius:'3px', overflow:'hidden'}}>
-                            <div style={{width: `${p}%`, background: p >= h.metaSemanal ? 'var(--secondary)' : 'var(--primary)', height: '100%', borderRadius:'3px', boxShadow: p >= h.metaSemanal ? '0 0 10px var(--secondary)' : 'none'}}></div>
+                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5px'}}>
+                            <strong style={{color:'white', fontSize:'1.1rem', letterSpacing:'0.5px'}}>{h.titulo}</strong>
+                            <span style={{
+                                color: cumplido ? 'var(--secondary)' : 'var(--text-muted)', 
+                                fontSize: '0.8rem', fontWeight: 'bold'
+                            }}>
+                                {diasLogrados} / {meta} Días
+                            </span>
                         </div>
-                        <small style={{color: 'var(--text-muted)', fontSize:'0.75rem', marginTop:'5px', display:'block'}}>Meta: {h.metaSemanal}%</small>
+                        
+                        {/* Barra de progreso */}
+                        <div style={{width: '100%', background: 'rgba(0,0,0,0.5)', height: '6px', borderRadius:'3px', overflow:'hidden'}}>
+                            <div style={{
+                                width: `${porcentaje}%`, 
+                                background: cumplido ? 'var(--secondary)' : 'var(--primary)', 
+                                height: '100%', borderRadius:'3px', 
+                                boxShadow: cumplido ? '0 0 10px var(--secondary)' : 'none'
+                            }}></div>
+                        </div>
                       </div>
                       
-                      <button onClick={() => eliminarHabito(h.id)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'1.2rem', opacity:0.7, transition:'opacity 0.2s'}} title="Eliminar">
+                      <button onClick={() => eliminarHabito(h.id)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'1.2rem', opacity:0.7, marginLeft: '15px'}} title="Eliminar">
                         🗑️
                       </button>
                     </div>
@@ -177,7 +212,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                 border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '16px', background: 'rgba(0,0,0,0.2)'
             }}>
               <p style={{fontSize:'2rem', margin:0}}>👈</p>
-              <p>Selecciona un paciente de la lista para ver su expediente.</p>
+              <p>Selecciona un paciente para gestionar su terapia.</p>
             </div>
           )}
         </div>

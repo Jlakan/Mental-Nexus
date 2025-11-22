@@ -30,11 +30,9 @@ export function PanelPaciente({ userUid }: any) {
 
   useEffect(() => {
     const q = query(collection(db, "habitos"), where("pacienteId", "==", userUid));
-    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Lógica de auto-archivado
       lista.forEach(async (h: any) => {
         if (h.ultimaSemanaRegistrada !== currentWeekId) {
             const registroAArchivar = h.registro || { L: false, M: false, X: false, J: false, V: false, S: false, D: false };
@@ -79,30 +77,38 @@ export function PanelPaciente({ userUid }: any) {
     } catch (error) { console.error(error); }
   };
 
-  const calcularProgresoHabito = (registro: any) => {
+  // NUEVA LÓGICA: Conteo de días
+  const contarDias = (registro: any) => {
     if (!registro) return 0;
-    const cumplidos = Object.values(registro).filter(val => val === true).length;
-    return Math.round((cumplidos / 7) * 100);
+    return Object.values(registro).filter(val => val === true).length;
   };
 
   const getDatosVisualizacion = (habito: any) => {
-      if (semanaOffset === 0) {
-          return habito.registro;
-      } else {
-          return { L: false, M: false, X: false, J: false, V: false, S: false, D: false }; 
-      }
+      if (semanaOffset === 0) return habito.registro;
+      // Aquí podrías buscar en historial real, por ahora demo vacío
+      return { L: false, M: false, X: false, J: false, V: false, S: false, D: false }; 
   };
 
   const diasSemana = ["L", "M", "X", "J", "V", "S", "D"];
   
-  const promedioSemanal = misHabitos.length > 0 
-    ? Math.round(misHabitos.reduce((acc, h) => acc + calcularProgresoHabito(h.registro), 0) / misHabitos.length)
-    : 0;
+  // Cálculo de la barra global (Promedio de cumplimiento de metas)
+  const calcularProgresoGlobal = () => {
+      if (misHabitos.length === 0) return 0;
+      const sumaPorcentajes = misHabitos.reduce((acc, h) => {
+          const dias = contarDias(h.registro);
+          const meta = h.frecuenciaMeta || 7;
+          const porc = Math.min(1, dias / meta); // Máximo 100% (1.0)
+          return acc + porc;
+      }, 0);
+      return Math.round((sumaPorcentajes / misHabitos.length) * 100);
+  };
+
+  const promedioSemanal = calcularProgresoGlobal();
 
   return (
     <div style={{textAlign: 'left', paddingBottom: '50px'}}>
       
-      {/* --- HUD GAMIFICACIÓN --- */}
+      {/* HUD */}
       <div style={{
           background: 'linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%)', 
           borderRadius: '20px', padding: '25px', color: 'white', marginBottom: '30px', 
@@ -116,10 +122,9 @@ export function PanelPaciente({ userUid }: any) {
             <div style={{fontSize: '3rem', filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.5))'}}>🏆</div>
         </div>
 
-        {/* BARRA DE CARRERA GLOBAL */}
         <div style={{background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '15px', backdropFilter: 'blur(5px)'}}>
             <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 'bold', textTransform:'uppercase', letterSpacing:'1px'}}>
-                <span>🚀 Meta de la Semana</span>
+                <span>🚀 Meta Semanal</span>
                 <span>{promedioSemanal}%</span>
             </div>
             <div style={{width: '100%', background: 'rgba(255,255,255,0.1)', height: '10px', borderRadius: '10px', overflow: 'hidden'}}>
@@ -134,42 +139,28 @@ export function PanelPaciente({ userUid }: any) {
         </div>
       </div>
 
-      {/* --- CONTROL DE TIEMPO --- */}
+      {/* CONTROL TIEMPO */}
       <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', 
           background: 'rgba(15, 23, 42, 0.6)', padding: '10px 15px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)'
       }}>
-        <button 
-            onClick={() => setSemanaOffset(semanaOffset - 1)}
-            style={{background:'rgba(255,255,255,0.1)', border:'none', width:'40px', height:'40px', borderRadius:'50%', cursor:'pointer', color:'white', fontSize:'1.2rem'}}
-        >⬅</button>
-        
+        <button onClick={() => setSemanaOffset(semanaOffset - 1)} style={{background:'rgba(255,255,255,0.1)', border:'none', width:'40px', height:'40px', borderRadius:'50%', cursor:'pointer', color:'white', fontSize:'1.2rem'}}>⬅</button>
         <div style={{textAlign:'center'}}>
             <span style={{fontWeight:'bold', color:'var(--primary)', fontSize:'1rem', textTransform:'uppercase', letterSpacing:'1px'}}>{getWeekLabel(semanaOffset)}</span>
-            <br/>
-            <small style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>
-                {semanaOffset === 0 ? "● EN TIEMPO REAL" : "○ MODO HISTORIAL"}
-            </small>
+            <br/><small style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>{semanaOffset === 0 ? "● EN TIEMPO REAL" : "○ MODO HISTORIAL"}</small>
         </div>
-
-        <button 
-            onClick={() => semanaOffset < 0 && setSemanaOffset(semanaOffset + 1)}
-            style={{
-                background: semanaOffset === 0 ? 'transparent' : 'rgba(255,255,255,0.1)', 
-                border: semanaOffset === 0 ? '1px solid rgba(255,255,255,0.1)' : 'none',
-                width:'40px', height:'40px', borderRadius:'50%', 
-                cursor: semanaOffset === 0 ? 'default' : 'pointer', 
-                color: semanaOffset === 0 ? 'gray' : 'white', fontSize:'1.2rem'
-            }}
-        >➡</button>
+        <button onClick={() => semanaOffset < 0 && setSemanaOffset(semanaOffset + 1)} style={{background: semanaOffset === 0 ? 'transparent' : 'rgba(255,255,255,0.1)', border: semanaOffset === 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', width:'40px', height:'40px', borderRadius:'50%', cursor: semanaOffset === 0 ? 'default' : 'pointer', color: semanaOffset === 0 ? 'gray' : 'white', fontSize:'1.2rem'}}>➡</button>
       </div>
 
-      {/* --- LISTA DE HÁBITOS --- */}
+      {/* LISTA DE HÁBITOS */}
       <div style={{display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
         {misHabitos.map(habito => {
           const datosMostrar = getDatosVisualizacion(habito);
-          const porcentaje = calcularProgresoHabito(datosMostrar);
-          const logrado = porcentaje >= habito.metaSemanal;
+          const diasLogrados = contarDias(datosMostrar);
+          const meta = habito.frecuenciaMeta || 7;
+          
+          const porcentaje = Math.min(100, Math.round((diasLogrados / meta) * 100));
+          const logrado = diasLogrados >= meta;
           const esHistorial = semanaOffset < 0;
           
           return (
@@ -186,12 +177,11 @@ export function PanelPaciente({ userUid }: any) {
               <div style={{marginBottom: '20px'}}>
                 <h4 style={{margin: '0 0 5px 0', fontSize: '1.3rem', color: 'white', letterSpacing:'0.5px'}}>{habito.titulo}</h4>
                 <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-                    <span style={{fontSize: '0.75rem', color: 'var(--text-muted)', textTransform:'uppercase'}}>Recompensa:</span>
-                    <span style={{background: 'rgba(6, 182, 212, 0.1)', border:'1px solid var(--primary)', color: 'var(--primary)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold'}}>+{XP_POR_HABITO} XP</span>
+                    <span style={{fontSize: '0.75rem', color: 'var(--text-muted)', textTransform:'uppercase'}}>Objetivo:</span>
+                    <span style={{background: 'rgba(255,255,255,0.1)', color: 'white', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold'}}>{meta} días/sem</span>
                 </div>
               </div>
 
-              {/* BOTONERA DE DÍAS */}
               <div style={{display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '12px'}}>
                 {diasSemana.map(dia => (
                   <div key={dia} style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'}}>
@@ -199,21 +189,12 @@ export function PanelPaciente({ userUid }: any) {
                       <button 
                         onClick={() => toggleDia(habito.id, dia, datosMostrar[dia])}
                         style={{
-                          width: '32px', height: '32px', borderRadius: '8px', 
-                          cursor: esHistorial ? 'not-allowed' : 'pointer', 
-                          
-                          // CORRECCIÓN: Eliminamos 'border: none' duplicado
-                          background: datosMostrar[dia] 
-                            ? 'var(--secondary)' 
-                            : 'rgba(255,255,255,0.05)',
-                          
+                          width: '32px', height: '32px', borderRadius: '8px', border: 'none', cursor: esHistorial ? 'not-allowed' : 'pointer', 
+                          background: datosMostrar[dia] ? 'var(--secondary)' : 'rgba(255,255,255,0.05)',
                           color: datosMostrar[dia] ? 'black' : 'white',
-                          border: datosMostrar[dia] ? 'none' : '1px solid rgba(255,255,255,0.1)',
                           boxShadow: datosMostrar[dia] ? '0 0 10px var(--secondary)' : 'none',
-                          
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all 0.2s ease',
-                          transform: datosMostrar[dia] ? 'scale(1.1)' : 'scale(1)',
+                          transition: 'all 0.2s ease', transform: datosMostrar[dia] ? 'scale(1.1)' : 'scale(1)',
                         }}
                       >
                         {datosMostrar[dia] && "✓"}
@@ -222,12 +203,11 @@ export function PanelPaciente({ userUid }: any) {
                 ))}
               </div>
               
-              {/* MINI BARRA PROGRESO */}
               <div style={{marginTop: '15px', display: 'flex', alignItems: 'center', gap: '10px'}}>
                 <div style={{flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px'}}>
-                    <div style={{width: `${porcentaje}%`, background: 'var(--primary)', height: '100%', borderRadius: '2px', transition: 'width 0.5s', boxShadow: '0 0 5px var(--primary)'}}></div>
+                    <div style={{width: `${porcentaje}%`, background: logrado ? 'var(--secondary)' : 'var(--primary)', height: '100%', borderRadius: '2px', transition: 'width 0.5s', boxShadow: logrado ? '0 0 5px var(--secondary)' : '0 0 5px var(--primary)'}}></div>
                 </div>
-                <span style={{fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 'bold'}}>{porcentaje}%</span>
+                <span style={{fontSize: '0.8rem', color: logrado ? 'var(--secondary)' : 'var(--primary)', fontWeight: 'bold'}}>{diasLogrados} / {meta}</span>
               </div>
 
             </div>
