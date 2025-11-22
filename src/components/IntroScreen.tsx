@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-// Asegúrate de que style.css esté importado en App.tsx (ya lo está)
 
 export function IntroScreen({ onFinish }: { onFinish: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -13,7 +12,6 @@ export function IntroScreen({ onFinish }: { onFinish: () => void }) {
   };
 
   return (
-    // Usamos la clase CSS 'intro-container' en lugar de styles inline complejos
     <div className="intro-container" style={{ opacity: opacity }}>
       
       <video 
@@ -21,9 +19,9 @@ export function IntroScreen({ onFinish }: { onFinish: () => void }) {
         src="/intro.mp4" 
         autoPlay 
         muted 
-        playsInline // Vital para que iPhone no abra el reproductor nativo
+        playsInline 
         onEnded={handleEnded}
-        className="video-responsive" // <--- AQUÍ ESTÁ LA MAGIA
+        className="video-responsive"
       />
       
       <button 
@@ -38,7 +36,8 @@ export function IntroScreen({ onFinish }: { onFinish: () => void }) {
           boxShadow: '0 0 10px rgba(6, 182, 212, 0.3)'
         }}
       >
-        Saltar >>
+        {/* CORRECCIÓN: Usamos el código HTML para evitar errores */}
+        SALTAR &gt;&gt;
       </button>
     </div>
   );
