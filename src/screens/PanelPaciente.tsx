@@ -34,7 +34,7 @@ export function PanelPaciente({ userUid }: any) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Lógica de auto-archivado (se mantiene igual)
+      // Lógica de auto-archivado
       lista.forEach(async (h: any) => {
         if (h.ultimaSemanaRegistrada !== currentWeekId) {
             const registroAArchivar = h.registro || { L: false, M: false, X: false, J: false, V: false, S: false, D: false };
@@ -89,14 +89,12 @@ export function PanelPaciente({ userUid }: any) {
       if (semanaOffset === 0) {
           return habito.registro;
       } else {
-          // Simplificación visual para historial
           return { L: false, M: false, X: false, J: false, V: false, S: false, D: false }; 
       }
   };
 
   const diasSemana = ["L", "M", "X", "J", "V", "S", "D"];
   
-  // Promedio para la barra principal
   const promedioSemanal = misHabitos.length > 0 
     ? Math.round(misHabitos.reduce((acc, h) => acc + calcularProgresoHabito(h.registro), 0) / misHabitos.length)
     : 0;
@@ -104,7 +102,7 @@ export function PanelPaciente({ userUid }: any) {
   return (
     <div style={{textAlign: 'left', paddingBottom: '50px'}}>
       
-      {/* --- HUD GAMIFICACIÓN (Tarjeta Gradiente) --- */}
+      {/* --- HUD GAMIFICACIÓN --- */}
       <div style={{
           background: 'linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%)', 
           borderRadius: '20px', padding: '25px', color: 'white', marginBottom: '30px', 
@@ -136,7 +134,7 @@ export function PanelPaciente({ userUid }: any) {
         </div>
       </div>
 
-      {/* --- CONTROL DE TIEMPO (Cápsula Oscura) --- */}
+      {/* --- CONTROL DE TIEMPO --- */}
       <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', 
           background: 'rgba(15, 23, 42, 0.6)', padding: '10px 15px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)'
@@ -201,13 +199,13 @@ export function PanelPaciente({ userUid }: any) {
                       <button 
                         onClick={() => toggleDia(habito.id, dia, datosMostrar[dia])}
                         style={{
-                          width: '32px', height: '32px', borderRadius: '8px', border: 'none', 
+                          width: '32px', height: '32px', borderRadius: '8px', 
                           cursor: esHistorial ? 'not-allowed' : 'pointer', 
                           
-                          // LÓGICA VISUAL DE BOTONES
+                          // CORRECCIÓN: Eliminamos 'border: none' duplicado
                           background: datosMostrar[dia] 
-                            ? 'var(--secondary)' // Encendido (Verde Neón)
-                            : 'rgba(255,255,255,0.05)', // Apagado (Casi transparente)
+                            ? 'var(--secondary)' 
+                            : 'rgba(255,255,255,0.05)',
                           
                           color: datosMostrar[dia] ? 'black' : 'white',
                           border: datosMostrar[dia] ? 'none' : '1px solid rgba(255,255,255,0.1)',

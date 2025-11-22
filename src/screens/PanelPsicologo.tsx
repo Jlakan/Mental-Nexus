@@ -78,7 +78,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
               <div key={p.id} 
                 onClick={() => p.isAuthorized && setPacienteSeleccionado(p)}
                 style={{
-                  // Diseño condicional: Si está seleccionado se ilumina, si no es oscuro
                   background: pacienteSeleccionado?.id === p.id ? 'rgba(6, 182, 212, 0.15)' : 'rgba(255,255,255,0.03)',
                   border: pacienteSeleccionado?.id === p.id ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.05)',
                   padding: '15px', borderRadius: '12px', transition: 'all 0.2s', cursor: p.isAuthorized ? 'pointer' : 'default'
@@ -92,9 +91,10 @@ export function PanelPsicologo({ userData, userUid }: any) {
                     <button 
                         onClick={(e) => { e.stopPropagation(); autorizarPaciente(p.id, p.isAuthorized); }}
                         style={{
-                            padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', border:'none', cursor:'pointer', fontWeight: 'bold',
+                            padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', cursor:'pointer', fontWeight: 'bold',
                             background: p.isAuthorized ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                             color: p.isAuthorized ? 'var(--secondary)' : '#EF4444',
+                            // CORRECCIÓN: Única definición de border
                             border: p.isAuthorized ? '1px solid var(--secondary)' : '1px solid #EF4444'
                         }}
                     >
@@ -157,7 +157,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
                       <div style={{flex: 1}}>
                         <strong style={{color:'white', fontSize:'1.1rem', letterSpacing:'0.5px'}}>{h.titulo}</strong>
                         
-                        {/* Barra de progreso */}
                         <div style={{width: '100%', background: 'rgba(0,0,0,0.5)', height: '6px', marginTop: '8px', maxWidth: '250px', borderRadius:'3px', overflow:'hidden'}}>
                             <div style={{width: `${p}%`, background: p >= h.metaSemanal ? 'var(--secondary)' : 'var(--primary)', height: '100%', borderRadius:'3px', boxShadow: p >= h.metaSemanal ? '0 0 10px var(--secondary)' : 'none'}}></div>
                         </div>
@@ -173,7 +172,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
               </div>
             </div>
           ) : (
-            // ESTADO VACÍO
             <div style={{
                 padding: '60px', textAlign: 'center', color: 'var(--text-muted)', 
                 border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '16px', background: 'rgba(0,0,0,0.2)'
