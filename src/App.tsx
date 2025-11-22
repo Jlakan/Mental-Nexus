@@ -2,18 +2,20 @@ import { useState, useEffect } from 'react';
 import { auth, googleProvider, db } from './services/firebaseConfig';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { 
-  doc, setDoc, updateDoc, addDoc, deleteDoc, 
-  collection, query, where, getDocs, onSnapshot, getDoc
+  doc, setDoc, updateDoc, collection, query, where, getDocs, getDoc
 } from 'firebase/firestore';
 import './style.css';
 
-// --- IMPORTAMOS LOS COMPONENTES NUEVOS ---
+// --- IMPORTACIÓN DE MÓDULOS ---
 import { Header } from './components/Header';
 import { PanelPaciente } from './screens/PanelPaciente';
+import { PanelAdmin } from './screens/PanelAdmin';
+import { PanelPsicologo } from './screens/PanelPsicologo';
 
 // ==========================================
-// PANTALLAS AUXILIARES (Pronto irán a su archivo)
+// PANTALLAS DE FLUJO (LOGIN/REGISTRO/ESPERA)
 // ==========================================
+
 function LoginScreen() {
   const handleGoogleLogin = async () => {
     try { await signInWithPopup(auth, googleProvider); } 
@@ -23,7 +25,10 @@ function LoginScreen() {
     <div className="container login-container">
       <h1>Mental Nexus 2.0 🧠</h1>
       <p style={{fontSize: '1.1rem', marginBottom: '2rem'}}>Gestión Profesional de Terapia.</p>
-      <button className="btn-google" onClick={handleGoogleLogin}>Ingresar con Google</button>
+      <button className="btn-google" onClick={handleGoogleLogin}>
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" width="20" />
+        Ingresar con Google
+      </button>
     </div>
   );
 }
@@ -36,6 +41,37 @@ function PantallaEspera({ mensaje }: { mensaje?: string }) {
         <p style={{margin: 0, fontWeight: 'bold'}}>{mensaje || "Tu cuenta está pendiente de autorización."}</p>
       </div>
       <button onClick={() => signOut(auth)} className="btn-link">Cerrar Sesión</button>
+    </div>
+  );
+}
+
+function VinculacionScreen({ userUid }: any) {
+  const [codigo, setCodigo] = useState("");
+  const [error, setError] = useState("");
+
+  const validarCodigo = async () => {
+    if (!codigo) return;
+    try {
+      const q = query(collection(db, "users"), where("codigoVinculacion", "==", codigo));
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) { setError("Código no válido."); return; }
+      
+      const psicologoDoc = querySnapshot.docs[0];
+      await updateDoc(doc(db, "users", userUid), {
+        psicologoId: psicologoDoc.id, estatus: "activo", asignadoEl: new Date()
+      });
+      window.location.reload(); 
+    } catch (err) { console.error(err); setError("Error de conexión."); }
+  };
+
+  return (
+    <div className="container" style={{textAlign:'center'}}>
+      <h2>🔑 Vincular con Especialista</h2>
+      <p>Tu cuenta fue aprobada. Ingresa el código de tu terapeuta:</p>
+      <input type="text" placeholder="Ej: PSI-1234" className="input-code" value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} />
+      {error && <p style={{color: 'red'}}>{error}</p>}
+      <button onClick={validarCodigo} className="btn-primary">Entrar</button>
+      <button onClick={() => signOut(auth)} className="btn-link">Salir</button>
     </div>
   );
 }
@@ -96,7 +132,6 @@ function RegistroScreen({ user }: any) {
     );
   }
   
-  // Renderizados simplificados para terapeuta/paciente en registro...
   if (modo === 'terapeuta') {
       return <div className="container" style={{textAlign:'center'}}><h2>Registro Terapeuta</h2><button onClick={registrarTerapeuta} className="btn-primary">Confirmar</button></div>
   }
@@ -110,85 +145,7 @@ function RegistroScreen({ user }: any) {
 }
 
 // ==========================================
-// PANELES QUE FALTAN MOVER (LOS DEJAMOS AQUÍ POR AHORA)
-// ==========================================
-function PanelPsicologo({ userData, userUid }: any) {
-  // ... (Lógica del psicólogo idéntica a la anterior, resumida para no llenar el chat)
-  // Si quieres, crea src/screens/PanelPsicologo.tsx y muévelo ahí también
-  const [pacientes, setPacientes] = useState<any[]>([]); 
-  const [pacienteSeleccionado, setPacienteSeleccionado] = useState<any>(null);
-  const [habitosPaciente, setHabitosPaciente] = useState<any[]>([]);
-  const [tituloHabito, setTituloHabito] = useState("");
-  const [metaSemanal, setMetaSemanal] = useState(80);
-
-  useEffect(() => {
-    const colRef = collection(db, "users", userUid, "pacientes");
-    const unsubscribe = onSnapshot(colRef, (snap) => setPacientes(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => unsubscribe();
-  }, [userUid]);
-
-  useEffect(() => {
-    if (!pacienteSeleccionado) { setHabitosPaciente([]); return; }
-    const q = query(collection(db, "habitos"), where("pacienteId", "==", pacienteSeleccionado.id));
-    const unsubscribe = onSnapshot(q, (snap) => setHabitosPaciente(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => unsubscribe();
-  }, [pacienteSeleccionado]);
-
-  const autorizar = async (id: string, estado: boolean) => await updateDoc(doc(db, "users", userUid, "pacientes", id), { isAuthorized: !estado });
-  const crear = async () => {
-      if(!tituloHabito) return;
-      await addDoc(collection(db, "habitos"), { titulo: tituloHabito, pacienteId: pacienteSeleccionado.id, asignadoPor: userUid, metaSemanal: metaSemanal, createdAt: new Date(), registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false } });
-      setTituloHabito("");
-  };
-  const eliminar = async (id: string) => { if(confirm("¿Borrar?")) await deleteDoc(doc(db, "habitos", id)); };
-  const calcular = (reg: any) => Math.round((Object.values(reg).filter(v => v === true).length / 7) * 100);
-
-  return (
-    <div style={{textAlign: 'left'}}>
-      <div style={{background: 'white', padding: '20px', borderRadius: '16px', marginBottom: '20px'}}>
-        <h3 style={{margin:0, color: '#4F46E5'}}>👨‍⚕️ Consultorio</h3>
-        <p style={{margin:0}}>Código: <strong>{userData.codigoVinculacion}</strong></p>
-      </div>
-      <div style={{display: 'flex', gap: '30px'}}>
-        <div style={{flex: 1}}>
-            <h4>Pacientes</h4>
-            {pacientes.map(p => (
-                <div key={p.id} style={{padding:'10px', border:'1px solid #eee', margin:'5px 0', borderRadius:'8px', cursor:'pointer', background: pacienteSeleccionado?.id===p.id?'#EEF2FF':'white'}} onClick={()=>p.isAuthorized && setPacienteSeleccionado(p)}>
-                    {p.displayName} 
-                    <button onClick={(e)=>{e.stopPropagation(); autorizar(p.id, p.isAuthorized)}} style={{float:'right', fontSize:'0.7rem'}}>{p.isAuthorized?"Activo":"Aprobar"}</button>
-                </div>
-            ))}
-        </div>
-        <div style={{flex: 2}}>
-            {pacienteSeleccionado ? (
-                <div>
-                    <h4>{pacienteSeleccionado.displayName}</h4>
-                    <div style={{display:'flex', gap:'10px'}}>
-                        <input value={tituloHabito} onChange={e=>setTituloHabito(e.target.value)} placeholder="Nuevo hábito" />
-                        <button onClick={crear} className="btn-primary">Agregar</button>
-                    </div>
-                    <div style={{marginTop:'20px'}}>
-                        {habitosPaciente.map(h => (
-                            <div key={h.id} style={{padding:'10px', border:'1px solid #eee', marginBottom:'10px', borderRadius:'8px'}}>
-                                <strong>{h.titulo}</strong> ({calcular(h.registro)}%)
-                                <button onClick={()=>eliminar(h.id)} style={{float:'right'}}>🗑️</button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            ) : <p>Selecciona un paciente</p>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PanelAdmin() {
-    return <div className="container"><h2>Panel Admin</h2><p>(Código pendiente de mover a archivo propio)</p></div>
-}
-
-// ==========================================
-// APP PRINCIPAL
+// APP PRINCIPAL (CONTROLADOR DE VISTAS)
 // ==========================================
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -228,8 +185,8 @@ export default function App() {
       <div className="container" style={{maxWidth: '1200px'}}>
         <Header userData={userData} setUserData={setUserData} user={user} />
         <div style={{display: 'flex', gap: '20px', marginBottom: '20px', borderBottom: '1px solid #eee'}}>
-            <button onClick={() => setActiveTab('consultorio')} style={{padding: '10px', fontWeight: activeTab==='consultorio'?'bold':'normal'}}>Consultorio</button>
-            <button onClick={() => setActiveTab('admin')} style={{padding: '10px', fontWeight: activeTab==='admin'?'bold':'normal'}}>Admin</button>
+            <button onClick={() => setActiveTab('consultorio')} style={{padding: '10px', borderBottom: activeTab==='consultorio'?'2px solid #4F46E5':'none', background:'none', border:'none', cursor:'pointer', fontWeight:'bold'}}>Consultorio</button>
+            <button onClick={() => setActiveTab('admin')} style={{padding: '10px', borderBottom: activeTab==='admin'?'2px solid #1F2937':'none', background:'none', border:'none', cursor:'pointer', fontWeight:'bold'}}>Admin</button>
         </div>
         {activeTab === 'consultorio' ? <PanelPsicologo userData={userData} userUid={user.uid} /> : <PanelAdmin />}
       </div>
