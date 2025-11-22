@@ -1,158 +1,153 @@
-/* src/style.css */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+/* src/style.css - TEMA MENTAL NEXUS DARK */
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Inter:wght@300;400;600&display=swap');
 
 :root {
-  --primary: #4F46E5;       /* Índigo moderno */
-  --primary-hover: #4338ca;
-  --secondary: #10B981;     /* Verde esmeralda (éxito) */
-  --danger: #EF4444;        /* Rojo suave */
-  --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  --glass-bg: rgba(255, 255, 255, 0.95);
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  /* Paleta extraída de tu logo */
+  --bg-dark: #0b1120;        /* Azul noche muy oscuro */
+  --bg-card: rgba(30, 41, 59, 0.7); /* Cristal oscuro */
+  --primary: #06b6d4;        /* Cian eléctrico */
+  --secondary: #10b981;      /* Verde circuito */
+  --text-main: #f8fafc;      /* Blanco humo */
+  --text-muted: #94a3b8;     /* Gris azulado */
+  
+  --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+  --glow-primary: 0 0 15px rgba(6, 182, 212, 0.3);
+  --glow-secondary: 0 0 15px rgba(16, 185, 129, 0.3);
+  
   --radius: 16px;
 }
 
 body {
   font-family: 'Inter', sans-serif;
-  background: var(--bg-gradient);
-  color: #1f2937;
+  /* Fondo con degradado sutil simulando la luz del logo */
+  background: radial-gradient(circle at 50% 0%, #1e293b 0%, var(--bg-dark) 100%);
+  color: var(--text-main);
   min-height: 100vh;
+  margin: 0;
   display: flex;
   justify-content: center;
-  padding: 40px 20px;
-  margin: 0;
-}
-
-/* Contenedor Principal (Efecto Tarjeta Flotante) */
-.container {
-  background: var(--glass-bg);
-  padding: 2.5rem;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
-  width: 100%;
-  max-width: 1000px; /* Más ancho para que quepan las columnas */
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  transition: all 0.3s ease;
+  padding: 20px;
 }
 
 h1, h2, h3, h4 {
-  color: #111827;
+  font-family: 'Rajdhani', sans-serif; /* Fuente tecnológica */
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+h1 {
+  background: linear-gradient(to right, var(--primary), var(--secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   font-weight: 700;
-  letter-spacing: -0.025em;
-  margin-bottom: 0.5em;
 }
 
-h1 { font-size: 2.25rem; text-align: center; color: var(--primary); }
-p { color: #6b7280; line-height: 1.5; }
-
-/* Botones Generales */
-button {
-  font-family: 'Inter', sans-serif;
-  font-weight: 600;
-  transition: all 0.2s ease;
-}
-
-button:active {
-  transform: scale(0.98);
-}
-
-/* Botón Primario (Azul) */
-.btn-primary {
-  background: var(--primary);
-  color: white;
-  padding: 12px 24px;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
+/* Contenedor Principal (Tarjeta de Cristal) */
+.container {
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: var(--glass-border);
+  padding: 2rem;
+  border-radius: var(--radius);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   width: 100%;
-  box-shadow: 0 4px 6px rgba(79, 70, 229, 0.3);
+  max-width: 1100px;
+  transition: all 0.3s ease;
 }
 
-.btn-primary:hover {
-  background: var(--primary-hover);
-  box-shadow: 0 6px 10px rgba(79, 70, 229, 0.4);
-}
-
-/* Botón Google */
-.btn-google {
-  background: white;
-  color: #333;
-  border: 1px solid #e5e7eb;
-  padding: 12px 24px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-weight: 500;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  margin-top: 20px;
-}
-
-.btn-google:hover {
-  background: #f9fafb;
-  border-color: #d1d5db;
-}
-
-/* Botón Pequeño / Link */
-.btn-small, .btn-link {
-  background: none;
-  border: none;
-  color: #6b7280;
-  cursor: pointer;
-  font-size: 0.875rem;
-  text-decoration: none;
-}
-.btn-small:hover, .btn-link:hover { color: var(--primary); text-decoration: underline; }
-
-/* Inputs */
+/* Inputs oscuros */
 input[type="text"], input[type="number"] {
-  width: 100%;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid #334155;
+  color: white;
   padding: 12px;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  font-size: 1rem;
-  outline: none;
-  transition: border-color 0.2s;
-  box-sizing: border-box; /* Vital para que no se salga del contenedor */
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 input:focus {
+  outline: none;
   border-color: var(--primary);
-  background: #fefefe;
+  box-shadow: var(--glow-primary);
 }
 
 .input-code {
   text-align: center;
   font-size: 1.5rem !important;
   letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--primary);
+  font-family: 'Rajdhani', sans-serif;
+  color: var(--secondary) !important;
 }
 
-/* Tablas (Panel Admin) */
-table { width: 100%; border-spacing: 0; }
-th { text-transform: uppercase; font-size: 0.75rem; color: #6b7280; font-weight: 600; padding: 12px; border-bottom: 1px solid #e5e7eb; }
-td { padding: 16px 12px; border-bottom: 1px solid #f3f4f6; color: #374151; }
-tr:last-child td { border-bottom: none; }
+/* Botones Neón */
+.btn-primary {
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  color: #000;
+  font-weight: 700;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+}
 
-/* Utilidades de Carga */
-.loading {
+.btn-primary:hover {
+  filter: brightness(1.2);
+  box-shadow: var(--glow-primary);
+  transform: translateY(-2px);
+}
+
+.btn-google {
+  background: white;
+  color: #333;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 20px;
+}
+
+.btn-small, .btn-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+.btn-small:hover { color: var(--primary); }
+
+/* Tablas oscuras */
+table { width: 100%; border-spacing: 0; }
+th { color: var(--primary); border-bottom: 1px solid #334155; padding: 15px; text-align: left; font-size: 0.9rem; }
+td { border-bottom: 1px solid #1e293b; padding: 15px; color: var(--text-main); }
+
+/* Animación de carga */
+.loading {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  height: 100vh;
-  font-size: 1.2rem;
   color: var(--primary);
-  font-weight: 600;
-  animation: pulse 2s infinite;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.5rem;
+  letter-spacing: 2px;
+  animation: pulse 1.5s infinite;
 }
 
 @keyframes pulse {
-  0% { opacity: 0.5; }
-  50% { opacity: 1; }
-  100% { opacity: 0.5; }
+  0% { opacity: 0.6; text-shadow: 0 0 10px var(--primary); }
+  50% { opacity: 1; text-shadow: 0 0 20px var(--secondary); }
+  100% { opacity: 0.6; text-shadow: 0 0 10px var(--primary); }
 }
