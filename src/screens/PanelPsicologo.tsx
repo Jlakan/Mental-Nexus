@@ -136,9 +136,10 @@ export function PanelPsicologo({ userData, userUid }: any) {
                     </div>
                     <button onClick={(e) => { e.stopPropagation(); autorizarPaciente(p.id, p.isAuthorized); }}
                         style={{
-                            padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', border:'none', cursor:'pointer', fontWeight: 'bold',
+                            padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', cursor:'pointer', fontWeight: 'bold',
                             background: p.isAuthorized ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                             color: p.isAuthorized ? 'var(--secondary)' : '#EF4444',
+                            // CORREGIDO: Una sola definición de borde
                             border: p.isAuthorized ? '1px solid var(--secondary)' : '1px solid #EF4444'
                         }}>
                         {p.isAuthorized ? "ACTIVO" : "APROBAR"}
