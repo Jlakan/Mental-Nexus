@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 
 export function PanelAdmin() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
+  
+  // Estado para el ordenamiento
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
   // Cargar TODOS los usuarios
   useEffect(() => {
-    // No filtramos por rol, traemos todo para poder cruzar datos
     const q = query(collection(db, "users"));
     const unsubscribe = onSnapshot(q, (snap) => {
       const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -16,8 +18,7 @@ export function PanelAdmin() {
     return () => unsubscribe();
   }, []);
 
-  // --- LÓGICA DE CRUCE DE DATOS (ID -> NOMBRE) ---
-  // Creamos un "Diccionario" rápido para buscar nombres de psicólogos por su ID
+  // Diccionario ID -> Nombre (Para mostrar el doctor asignado)
   const mapaPsicologos = usuarios.reduce((acc, user) => {
       if (user.rol === 'psicologo') {
           acc[user.id] = user.displayName || "Sin Nombre";
@@ -25,6 +26,37 @@ export function PanelAdmin() {
       return acc;
   }, {} as Record<string, string>);
 
+  // --- LÓGICA DE ORDENAMIENTO ---
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const usuariosOrdenados = [...usuarios].sort((a, b) => {
+    if (!sortConfig) return 0;
+    
+    let valA = a[sortConfig.key] || "";
+    let valB = b[sortConfig.key] || "";
+
+    // Caso especial: Si ordenamos por "Doctor Asignado", usamos el nombre del mapa, no el ID
+    if (sortConfig.key === 'psicologoId') {
+        valA = mapaPsicologos[valA] || (a.rol === 'paciente' ? "zzz" : ""); // "zzz" para que los sin doctor vayan al final
+        valB = mapaPsicologos[valB] || (b.rol === 'paciente' ? "zzz" : "");
+    }
+
+    // Normalización para texto
+    if (typeof valA === 'string') valA = valA.toLowerCase();
+    if (typeof valB === 'string') valB = valB.toLowerCase();
+
+    if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+    if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // --- ACCIONES DE BASE DE DATOS ---
   const toggleAutorizacion = async (uid: string, estadoActual: boolean) => {
     await updateDoc(doc(db, "users", uid), { isAuthorized: !estadoActual });
   };
@@ -33,9 +65,7 @@ export function PanelAdmin() {
     if(!confirm(`¿Confirmar rol de ${tipo === 'psico' ? 'Terapeuta' : 'Paciente'}?`)) return;
     
     const updates: any = { 
-        isPsicologo: false, 
-        isPaciente: false,
-        estatus: 'activo'
+        isPsicologo: false, isPaciente: false, estatus: 'activo'
     };
     
     if (tipo === 'psico') {
@@ -47,65 +77,108 @@ export function PanelAdmin() {
         updates.isAuthorized = false;
         updates.estatus = 'pendiente';
     }
-    
     await updateDoc(doc(db, "users", uid), updates);
   };
 
-  return (
-    <div className="container" style={{maxWidth: '1100px'}}>
-      <h2>🛠️ Panel de Control Global</h2>
-      <p>Gestiona roles, permisos y vinculaciones.</p>
+  // Componente auxiliar para el encabezado de la tabla
+  const SortableHeader = ({ label, field }: { label: string, field: string }) => (
+      <th 
+        onClick={() => handleSort(field)}
+        style={{
+            textAlign:'left', padding:'15px', color:'var(--primary)', fontSize:'0.85rem', 
+            cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid rgba(255,255,255,0.1)',
+            whiteSpace: 'nowrap'
+        }}
+      >
+        <div style={{display:'flex', alignItems:'center', gap:'5px'}}>
+            {label}
+            {sortConfig?.key === field && (
+                <span style={{fontSize:'0.7rem'}}>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+            )}
+            {sortConfig?.key !== field && <span style={{opacity:0.3, fontSize:'0.7rem'}}>⇅</span>}
+        </div>
+      </th>
+  );
 
-      <div style={{background: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginTop: '20px', overflowX: 'auto'}}>
+  return (
+    <div style={{textAlign: 'left'}}>
+      
+      {/* HEADER DEL PANEL */}
+      <div style={{
+          background: 'var(--bg-card)', padding: '20px', borderRadius: '16px', marginBottom: '30px', 
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: 'var(--glass-border)',
+          display:'flex', justifyContent:'space-between', alignItems:'center'
+      }}>
+        <div>
+            <h3 style={{margin:0, color: 'var(--primary)', fontSize:'1.5rem'}}>🛠️ Control Global</h3>
+            <p style={{margin:0, fontSize:'0.9rem', color:'var(--text-muted)'}}>
+                Usuarios Totales: <strong style={{color:'white'}}>{usuarios.length}</strong>
+            </p>
+        </div>
+      </div>
+
+      {/* TABLA DE DATOS */}
+      <div style={{
+          background: 'var(--bg-card)', borderRadius: '16px', overflow: 'hidden', 
+          boxShadow: '0 4px 30px rgba(0,0,0,0.2)', border: 'var(--glass-border)',
+          overflowX: 'auto'
+      }}>
         <table style={{width: '100%', borderCollapse: 'collapse'}}>
-            <thead style={{background: '#F9FAFB'}}>
+            <thead style={{background: 'rgba(0,0,0,0.2)'}}>
                 <tr>
-                    <th style={{textAlign:'left', padding:'15px', color:'#6B7280', fontSize:'0.85rem'}}>Usuario</th>
-                    <th style={{textAlign:'left', padding:'15px', color:'#6B7280', fontSize:'0.85rem'}}>Rol / Estado</th>
-                    <th style={{textAlign:'left', padding:'15px', color:'#6B7280', fontSize:'0.85rem'}}>Asignación</th> {/* NUEVA COLUMNA */}
-                    <th style={{textAlign:'center', padding:'15px', color:'#6B7280', fontSize:'0.85rem'}}>Acciones</th>
+                    <SortableHeader label="USUARIO / EMAIL" field="displayName" />
+                    <SortableHeader label="ROL DEL SISTEMA" field="rol" />
+                    <SortableHeader label="ASIGNADO A" field="psicologoId" />
+                    <th style={{textAlign:'center', padding:'15px', color:'var(--primary)', fontSize:'0.85rem', borderBottom: '1px solid rgba(255,255,255,0.1)'}}>
+                        COMANDOS
+                    </th>
                 </tr>
             </thead>
             <tbody>
-            {usuarios.map(u => (
-                <tr key={u.id} style={{borderBottom: '1px solid #F3F4F6'}}>
+            {usuariosOrdenados.map(u => (
+                <tr key={u.id} style={{borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s'}} className="hover-row">
                     
                     {/* 1. USUARIO */}
                     <td style={{padding:'15px'}}>
-                        <div style={{fontWeight:'bold', color:'#1F2937'}}>{u.displayName}</div>
-                        <div style={{fontSize:'0.8rem', color:'#6B7280'}}>{u.email}</div>
+                        <div style={{fontWeight:'bold', color:'white', fontSize:'1rem'}}>{u.displayName}</div>
+                        <div style={{fontSize:'0.8rem', color:'var(--text-muted)', fontFamily:'monospace'}}>{u.email}</div>
                     </td>
 
                     {/* 2. ROL Y ESTADO */}
                     <td style={{padding:'15px'}}>
-                        {u.isAdmin && <span style={{background:'#FEF3C7', color:'#D97706', padding:'4px 8px', borderRadius:'6px', fontSize:'0.7rem', fontWeight:'bold', marginRight:'5px'}}>ADMIN</span>}
+                        {u.isAdmin && <span style={{background:'rgba(251, 191, 36, 0.2)', color:'#FBBF24', border:'1px solid #FBBF24', padding:'2px 8px', borderRadius:'4px', fontSize:'0.7rem', fontWeight:'bold', marginRight:'5px', letterSpacing:'1px'}}>ADMIN</span>}
                         
                         {u.rol === 'psicologo' && (
-                            <span style={{background: u.isAuthorized ? '#D1FAE5' : '#FEE2E2', color: u.isAuthorized ? '#065F46' : '#991B1B', padding:'4px 8px', borderRadius:'6px', fontSize:'0.7rem', fontWeight:'bold'}}>
-                                {u.isAuthorized ? "TERAPEUTA ACTIVO" : "TERAPEUTA PENDIENTE"}
+                            <span style={{
+                                background: u.isAuthorized ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
+                                color: u.isAuthorized ? '#34D399' : '#F87171', 
+                                border: u.isAuthorized ? '1px solid #34D399' : '1px solid #F87171',
+                                padding:'2px 8px', borderRadius:'4px', fontSize:'0.7rem', fontWeight:'bold', letterSpacing:'1px'
+                            }}>
+                                {u.isAuthorized ? "TERAPEUTA" : "PENDIENTE"}
                             </span>
                         )}
                         
-                        {u.rol === 'paciente' && <span style={{background:'#E0E7FF', color:'#4338CA', padding:'4px 8px', borderRadius:'6px', fontSize:'0.7rem', fontWeight:'bold'}}>PACIENTE</span>}
+                        {u.rol === 'paciente' && <span style={{background:'rgba(6, 182, 212, 0.1)', color:'var(--primary)', border:'1px solid var(--primary)', padding:'2px 8px', borderRadius:'4px', fontSize:'0.7rem', fontWeight:'bold', letterSpacing:'1px'}}>PACIENTE</span>}
                         
-                        {(!u.rol) && <span style={{background:'#F3F4F6', color:'#6B7280', padding:'4px 8px', borderRadius:'6px', fontSize:'0.7rem', fontWeight:'bold'}}>SIN ROL</span>}
+                        {(!u.rol) && <span style={{background:'rgba(255,255,255,0.1)', color:'var(--text-muted)', padding:'2px 8px', borderRadius:'4px', fontSize:'0.7rem'}}>NUEVO</span>}
                     </td>
 
-                    {/* 3. ASIGNACIÓN (NUEVA COLUMNA) */}
+                    {/* 3. ASIGNACIÓN */}
                     <td style={{padding:'15px'}}>
                         {u.rol === 'paciente' ? (
                             u.psicologoId ? (
-                                <div style={{display:'flex', alignItems:'center', gap:'5px'}}>
+                                <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
                                     <span style={{fontSize:'1rem'}}>👨‍⚕️</span>
-                                    <span style={{color:'#374151', fontWeight:'500'}}>
+                                    <span style={{color:'white', fontWeight:'500', fontSize:'0.9rem'}}>
                                         {mapaPsicologos[u.psicologoId] || "ID Desconocido"}
                                     </span>
                                 </div>
                             ) : (
-                                <span style={{color:'#9CA3AF', fontStyle:'italic'}}>Sin asignar</span>
+                                <span style={{color:'var(--text-muted)', fontStyle:'italic', fontSize:'0.8rem'}}>-- Sin asignar --</span>
                             )
                         ) : (
-                            <span style={{color:'#E5E7EB'}}>—</span>
+                            <span style={{color:'var(--text-muted)', opacity:0.3}}>—</span>
                         )}
                     </td>
 
@@ -113,11 +186,11 @@ export function PanelAdmin() {
                     <td style={{textAlign:'center', padding:'15px'}}>
                         {!u.rol && !u.isAdmin && (
                             <div style={{display: 'flex', gap: '8px', justifyContent: 'center'}}>
-                                <button onClick={() => asignarRol(u.id, 'psico')} style={{border: '1px solid #E5E7EB', background:'white', padding: '6px 10px', borderRadius: '8px', cursor:'pointer', fontSize:'0.8rem', color:'#4F46E5'}}>
-                                    Hacer Psico
+                                <button onClick={() => asignarRol(u.id, 'psico')} style={{border: '1px solid var(--primary)', background:'rgba(6, 182, 212, 0.1)', padding: '6px 10px', borderRadius: '6px', cursor:'pointer', fontSize:'0.7rem', color:'var(--primary)', fontWeight:'bold'}}>
+                                    + PSICO
                                 </button>
-                                <button onClick={() => asignarRol(u.id, 'paciente')} style={{border: '1px solid #E5E7EB', background:'white', padding: '6px 10px', borderRadius: '8px', cursor:'pointer', fontSize:'0.8rem', color:'#10B981'}}>
-                                    Hacer Paciente
+                                <button onClick={() => asignarRol(u.id, 'paciente')} style={{border: '1px solid var(--secondary)', background:'rgba(16, 185, 129, 0.1)', padding: '6px 10px', borderRadius: '6px', cursor:'pointer', fontSize:'0.7rem', color:'var(--secondary)', fontWeight:'bold'}}>
+                                    + PACIENTE
                                 </button>
                             </div>
                         )}
@@ -126,11 +199,13 @@ export function PanelAdmin() {
                             <button 
                                 onClick={() => toggleAutorizacion(u.id, u.isAuthorized)}
                                 style={{
-                                    border: '1px solid #E5E7EB', background:'white', padding:'6px 12px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', fontSize:'0.8rem',
-                                    color: u.isAuthorized ? '#EF4444' : '#10B981'
+                                    border: u.isAuthorized ? '1px solid #F87171' : '1px solid var(--secondary)', 
+                                    background: 'transparent', 
+                                    padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold', fontSize:'0.7rem',
+                                    color: u.isAuthorized ? '#F87171' : 'var(--secondary)'
                                 }}
                             >
-                                {u.isAuthorized ? "Revocar" : "Aprobar"}
+                                {u.isAuthorized ? "REVOCAR ACCESO" : "APROBAR ACCESO"}
                             </button>
                         )}
                     </td>
