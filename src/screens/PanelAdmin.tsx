@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, updateDoc, collection, query, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 
 export function PanelAdmin() {
@@ -7,6 +7,7 @@ export function PanelAdmin() {
 
   // Cargar TODOS los usuarios
   useEffect(() => {
+    // No filtramos por rol, traemos todo para poder cruzar datos
     const q = query(collection(db, "users"));
     const unsubscribe = onSnapshot(q, (snap) => {
       const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -15,12 +16,19 @@ export function PanelAdmin() {
     return () => unsubscribe();
   }, []);
 
-  // Función 1: Aprobar/Revocar acceso a un Terapeuta ya existente
+  // --- LÓGICA DE CRUCE DE DATOS (ID -> NOMBRE) ---
+  // Creamos un "Diccionario" rápido para buscar nombres de psicólogos por su ID
+  const mapaPsicologos = usuarios.reduce((acc, user) => {
+      if (user.rol === 'psicologo') {
+          acc[user.id] = user.displayName || "Sin Nombre";
+      }
+      return acc;
+  }, {} as Record<string, string>);
+
   const toggleAutorizacion = async (uid: string, estadoActual: boolean) => {
     await updateDoc(doc(db, "users", uid), { isAuthorized: !estadoActual });
   };
 
-  // Función 2: Asignar Rol a un usuario NUEVO (Sin rol)
   const asignarRol = async (uid: string, tipo: 'psico' | 'paciente') => {
     if(!confirm(`¿Confirmar rol de ${tipo === 'psico' ? 'Terapeuta' : 'Paciente'}?`)) return;
     
@@ -32,11 +40,11 @@ export function PanelAdmin() {
     
     if (tipo === 'psico') {
         updates.rol = 'psicologo';
-        updates.isAuthorized = true; // Lo aprobamos de una vez
+        updates.isAuthorized = true;
         updates.codigoVinculacion = "PSI-" + Math.floor(1000 + Math.random() * 9000);
     } else {
         updates.rol = 'paciente';
-        updates.isAuthorized = false; // El paciente espera a vincularse con su doctor
+        updates.isAuthorized = false;
         updates.estatus = 'pendiente';
     }
     
@@ -44,9 +52,9 @@ export function PanelAdmin() {
   };
 
   return (
-    <div className="container" style={{maxWidth: '1000px'}}>
+    <div className="container" style={{maxWidth: '1100px'}}>
       <h2>🛠️ Panel de Control Global</h2>
-      <p>Gestiona roles y permisos de la plataforma.</p>
+      <p>Gestiona roles, permisos y vinculaciones.</p>
 
       <div style={{background: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginTop: '20px', overflowX: 'auto'}}>
         <table style={{width: '100%', borderCollapse: 'collapse'}}>
@@ -54,19 +62,21 @@ export function PanelAdmin() {
                 <tr>
                     <th style={{textAlign:'left', padding:'15px', color:'#6B7280', fontSize:'0.85rem'}}>Usuario</th>
                     <th style={{textAlign:'left', padding:'15px', color:'#6B7280', fontSize:'0.85rem'}}>Rol / Estado</th>
+                    <th style={{textAlign:'left', padding:'15px', color:'#6B7280', fontSize:'0.85rem'}}>Asignación</th> {/* NUEVA COLUMNA */}
                     <th style={{textAlign:'center', padding:'15px', color:'#6B7280', fontSize:'0.85rem'}}>Acciones</th>
                 </tr>
             </thead>
             <tbody>
             {usuarios.map(u => (
                 <tr key={u.id} style={{borderBottom: '1px solid #F3F4F6'}}>
-                    {/* COLUMNA 1: DATOS */}
+                    
+                    {/* 1. USUARIO */}
                     <td style={{padding:'15px'}}>
                         <div style={{fontWeight:'bold', color:'#1F2937'}}>{u.displayName}</div>
                         <div style={{fontSize:'0.8rem', color:'#6B7280'}}>{u.email}</div>
                     </td>
 
-                    {/* COLUMNA 2: ESTADO */}
+                    {/* 2. ROL Y ESTADO */}
                     <td style={{padding:'15px'}}>
                         {u.isAdmin && <span style={{background:'#FEF3C7', color:'#D97706', padding:'4px 8px', borderRadius:'6px', fontSize:'0.7rem', fontWeight:'bold', marginRight:'5px'}}>ADMIN</span>}
                         
@@ -81,9 +91,26 @@ export function PanelAdmin() {
                         {(!u.rol) && <span style={{background:'#F3F4F6', color:'#6B7280', padding:'4px 8px', borderRadius:'6px', fontSize:'0.7rem', fontWeight:'bold'}}>SIN ROL</span>}
                     </td>
 
-                    {/* COLUMNA 3: BOTONES */}
+                    {/* 3. ASIGNACIÓN (NUEVA COLUMNA) */}
+                    <td style={{padding:'15px'}}>
+                        {u.rol === 'paciente' ? (
+                            u.psicologoId ? (
+                                <div style={{display:'flex', alignItems:'center', gap:'5px'}}>
+                                    <span style={{fontSize:'1rem'}}>👨‍⚕️</span>
+                                    <span style={{color:'#374151', fontWeight:'500'}}>
+                                        {mapaPsicologos[u.psicologoId] || "ID Desconocido"}
+                                    </span>
+                                </div>
+                            ) : (
+                                <span style={{color:'#9CA3AF', fontStyle:'italic'}}>Sin asignar</span>
+                            )
+                        ) : (
+                            <span style={{color:'#E5E7EB'}}>—</span>
+                        )}
+                    </td>
+
+                    {/* 4. ACCIONES */}
                     <td style={{textAlign:'center', padding:'15px'}}>
-                        {/* Si es un usuario SIN ROL, mostramos botones de asignar */}
                         {!u.rol && !u.isAdmin && (
                             <div style={{display: 'flex', gap: '8px', justifyContent: 'center'}}>
                                 <button onClick={() => asignarRol(u.id, 'psico')} style={{border: '1px solid #E5E7EB', background:'white', padding: '6px 10px', borderRadius: '8px', cursor:'pointer', fontSize:'0.8rem', color:'#4F46E5'}}>
@@ -95,7 +122,6 @@ export function PanelAdmin() {
                             </div>
                         )}
 
-                        {/* Si es TERAPEUTA, mostramos botón de Aprobar/Revocar */}
                         {u.rol === 'psicologo' && !u.isAdmin && (
                             <button 
                                 onClick={() => toggleAutorizacion(u.id, u.isAuthorized)}
@@ -104,7 +130,7 @@ export function PanelAdmin() {
                                     color: u.isAuthorized ? '#EF4444' : '#10B981'
                                 }}
                             >
-                                {u.isAuthorized ? "Revocar Acceso" : "Aprobar Acceso"}
+                                {u.isAuthorized ? "Revocar" : "Aprobar"}
                             </button>
                         )}
                     </td>
