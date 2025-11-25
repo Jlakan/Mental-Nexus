@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 
-// --- UTILIDADES DE FECHA ---
+// ... (Utilidades de fecha igual que antes) ...
 const getWeekId = (date: Date) => {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -10,7 +10,6 @@ const getWeekId = (date: Date) => {
   const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
   return `${d.getUTCFullYear()}-W${weekNo}`;
 };
-
 const getWeekLabel = (offset: number) => {
     if (offset === 0) return "Semana Actual";
     if (offset === -1) return "Semana Pasada";
@@ -33,13 +32,11 @@ export function PanelPaciente({ userUid }: any) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
+      // Auto-archivado
       lista.forEach(async (h: any) => {
         if (h.ultimaSemanaRegistrada !== currentWeekId) {
             const registroAArchivar = h.registro || { L: false, M: false, X: false, J: false, V: false, S: false, D: false };
-            const historialNuevo = {
-                ...h.historial,
-                [h.ultimaSemanaRegistrada || "antiguo"]: registroAArchivar
-            };
+            const historialNuevo = { ...h.historial, [h.ultimaSemanaRegistrada || "antiguo"]: registroAArchivar };
             await updateDoc(doc(db, "habitos", h.id), {
                 registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false },
                 historial: historialNuevo,
@@ -57,6 +54,7 @@ export function PanelPaciente({ userUid }: any) {
   const calcularGamificacion = (habitos: any[]) => {
     let totalChecks = 0;
     habitos.forEach(h => {
+        // Contamos TODO (Activos y Archivados)
         totalChecks += Object.values(h.registro).filter(v => v === true).length;
         if (h.historial) {
             Object.values(h.historial).forEach((semana: any) => {
@@ -77,38 +75,30 @@ export function PanelPaciente({ userUid }: any) {
     } catch (error) { console.error(error); }
   };
 
-  // NUEVA LÓGICA: Conteo de días
-  const contarDias = (registro: any) => {
-    if (!registro) return 0;
-    return Object.values(registro).filter(val => val === true).length;
-  };
+  const contarDias = (registro: any) => (!registro ? 0 : Object.values(registro).filter(val => val === true).length);
 
   const getDatosVisualizacion = (habito: any) => {
       if (semanaOffset === 0) return habito.registro;
-      // Aquí podrías buscar en historial real, por ahora demo vacío
       return { L: false, M: false, X: false, J: false, V: false, S: false, D: false }; 
   };
 
   const diasSemana = ["L", "M", "X", "J", "V", "S", "D"];
   
-  // Cálculo de la barra global (Promedio de cumplimiento de metas)
-  const calcularProgresoGlobal = () => {
-      if (misHabitos.length === 0) return 0;
-      const sumaPorcentajes = misHabitos.reduce((acc, h) => {
+  // Filtramos solo los ACTIVOS para la barra de la semana actual
+  const habitosActivos = misHabitos.filter(h => h.estado !== 'archivado');
+
+  const promedioSemanal = habitosActivos.length > 0 
+    ? Math.round(habitosActivos.reduce((acc, h) => {
           const dias = contarDias(h.registro);
           const meta = h.frecuenciaMeta || 7;
-          const porc = Math.min(1, dias / meta); // Máximo 100% (1.0)
-          return acc + porc;
-      }, 0);
-      return Math.round((sumaPorcentajes / misHabitos.length) * 100);
-  };
-
-  const promedioSemanal = calcularProgresoGlobal();
+          return acc + Math.min(1, dias / meta);
+      }, 0) / habitosActivos.length * 100)
+    : 0;
 
   return (
     <div style={{textAlign: 'left', paddingBottom: '50px'}}>
       
-      {/* HUD */}
+      {/* HUD (Muestra Nivel Global calculado con TODOS los hábitos) */}
       <div style={{
           background: 'linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%)', 
           borderRadius: '20px', padding: '25px', color: 'white', marginBottom: '30px', 
@@ -119,7 +109,7 @@ export function PanelPaciente({ userUid }: any) {
                 <h2 style={{margin: 0, fontSize: '2.5rem', color: 'white', fontFamily: 'Rajdhani, sans-serif'}}>Nivel {nivel}</h2>
                 <p style={{margin: 0, opacity: 0.9, fontSize:'0.9rem', fontWeight:'bold'}}>⚡ {puntosTotales} XP Totales</p>
             </div>
-            <div style={{fontSize: '3rem', filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.5))'}}>🏆</div>
+            <div style={{fontSize: '3rem'}}>🏆</div>
         </div>
 
         <div style={{background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '15px', backdropFilter: 'blur(5px)'}}>
@@ -128,22 +118,13 @@ export function PanelPaciente({ userUid }: any) {
                 <span>{promedioSemanal}%</span>
             </div>
             <div style={{width: '100%', background: 'rgba(255,255,255,0.1)', height: '10px', borderRadius: '10px', overflow: 'hidden'}}>
-                <div style={{
-                    width: `${promedioSemanal}%`, 
-                    background: 'var(--secondary)', 
-                    height: '100%', borderRadius: '10px', 
-                    transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: '0 0 15px var(--secondary)'
-                }}></div>
+                <div style={{width: `${promedioSemanal}%`, background: 'var(--secondary)', height: '100%', borderRadius: '10px', transition: 'width 1s ease'}}></div>
             </div>
         </div>
       </div>
 
       {/* CONTROL TIEMPO */}
-      <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', 
-          background: 'rgba(15, 23, 42, 0.6)', padding: '10px 15px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)'
-      }}>
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', background: 'rgba(15, 23, 42, 0.6)', padding: '10px 15px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)'}}>
         <button onClick={() => setSemanaOffset(semanaOffset - 1)} style={{background:'rgba(255,255,255,0.1)', border:'none', width:'40px', height:'40px', borderRadius:'50%', cursor:'pointer', color:'white', fontSize:'1.2rem'}}>⬅</button>
         <div style={{textAlign:'center'}}>
             <span style={{fontWeight:'bold', color:'var(--primary)', fontSize:'1rem', textTransform:'uppercase', letterSpacing:'1px'}}>{getWeekLabel(semanaOffset)}</span>
@@ -152,9 +133,12 @@ export function PanelPaciente({ userUid }: any) {
         <button onClick={() => semanaOffset < 0 && setSemanaOffset(semanaOffset + 1)} style={{background: semanaOffset === 0 ? 'transparent' : 'rgba(255,255,255,0.1)', border: semanaOffset === 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', width:'40px', height:'40px', borderRadius:'50%', cursor: semanaOffset === 0 ? 'default' : 'pointer', color: semanaOffset === 0 ? 'gray' : 'white', fontSize:'1.2rem'}}>➡</button>
       </div>
 
-      {/* LISTA DE HÁBITOS */}
+      {/* LISTA DE HÁBITOS (Solo mostramos los ACTIVOS) */}
       <div style={{display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
         {misHabitos.map(habito => {
+          // FILTRO VISUAL: Si está archivado, NO LO MOSTRAMOS AQUÍ
+          if (habito.estado === 'archivado') return null;
+
           const datosMostrar = getDatosVisualizacion(habito);
           const diasLogrados = contarDias(datosMostrar);
           const meta = habito.frecuenciaMeta || 7;
@@ -171,7 +155,6 @@ export function PanelPaciente({ userUid }: any) {
                 opacity: esHistorial ? 0.7 : 1,
                 boxShadow: logrado ? '0 0 20px rgba(16, 185, 129, 0.1)' : 'none'
             }}>
-              
               {logrado && <div style={{position: 'absolute', top: 0, right: 0, background: 'var(--secondary)', color: 'black', padding: '5px 15px', borderBottomLeftRadius: '15px', fontSize: '0.7rem', fontWeight: 'bold'}}>¡META CUMPLIDA!</div>}
 
               <div style={{marginBottom: '20px'}}>
@@ -189,7 +172,8 @@ export function PanelPaciente({ userUid }: any) {
                       <button 
                         onClick={() => toggleDia(habito.id, dia, datosMostrar[dia])}
                         style={{
-                          width: '32px', height: '32px', borderRadius: '8px', border: 'none', cursor: esHistorial ? 'not-allowed' : 'pointer', 
+                          width: '32px', height: '32px', borderRadius: '8px', border: 'none', 
+                          cursor: esHistorial ? 'not-allowed' : 'pointer', 
                           background: datosMostrar[dia] ? 'var(--secondary)' : 'rgba(255,255,255,0.05)',
                           color: datosMostrar[dia] ? 'black' : 'white',
                           boxShadow: datosMostrar[dia] ? '0 0 10px var(--secondary)' : 'none',
@@ -205,11 +189,10 @@ export function PanelPaciente({ userUid }: any) {
               
               <div style={{marginTop: '15px', display: 'flex', alignItems: 'center', gap: '10px'}}>
                 <div style={{flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px'}}>
-                    <div style={{width: `${porcentaje}%`, background: logrado ? 'var(--secondary)' : 'var(--primary)', height: '100%', borderRadius: '2px', transition: 'width 0.5s', boxShadow: logrado ? '0 0 5px var(--secondary)' : '0 0 5px var(--primary)'}}></div>
+                    <div style={{width: `${porcentaje}%`, background: 'var(--primary)', height: '100%', borderRadius: '2px', transition: 'width 0.5s', boxShadow: '0 0 5px var(--primary)'}}></div>
                 </div>
-                <span style={{fontSize: '0.8rem', color: logrado ? 'var(--secondary)' : 'var(--primary)', fontWeight: 'bold'}}>{diasLogrados} / {meta}</span>
+                <span style={{fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 'bold'}}>{diasLogrados} / {meta}</span>
               </div>
-
             </div>
           );
         })}

@@ -7,9 +7,10 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const [pacienteSeleccionado, setPacienteSeleccionado] = useState<any>(null);
   const [habitosPaciente, setHabitosPaciente] = useState<any[]>([]);
   
-  // Formulario
+  // Formulario y Edición
   const [tituloHabito, setTituloHabito] = useState("");
-  const [frecuenciaMeta, setFrecuenciaMeta] = useState(7); // Por defecto 7 días (diario)
+  const [frecuenciaMeta, setFrecuenciaMeta] = useState(7);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // 1. Cargar pacientes
   useEffect(() => {
@@ -34,36 +35,74 @@ export function PanelPsicologo({ userData, userUid }: any) {
     await updateDoc(ref, { isAuthorized: !estadoActual });
   };
 
-  const crearHabito = async () => {
+  // --- LÓGICA DE GESTIÓN DE HÁBITOS ---
+
+  const guardarHabito = async () => {
     if (!tituloHabito || !pacienteSeleccionado) return;
     
-    await addDoc(collection(db, "habitos"), {
-      titulo: tituloHabito, 
-      pacienteId: pacienteSeleccionado.id, 
-      asignadoPor: userUid, 
-      frecuenciaMeta: frecuenciaMeta, // <--- NUEVO CAMPO: Días objetivo (1-7)
-      createdAt: new Date(), 
-      registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false }
-    });
-    setTituloHabito(""); 
-    setFrecuenciaMeta(7); // Reset a diario
+    try {
+        if (editingId) {
+            // MODO EDICIÓN
+            await updateDoc(doc(db, "habitos", editingId), {
+                titulo: tituloHabito,
+                frecuenciaMeta: frecuenciaMeta
+            });
+        } else {
+            // MODO CREACIÓN
+            await addDoc(collection(db, "habitos"), {
+                titulo: tituloHabito, 
+                pacienteId: pacienteSeleccionado.id, 
+                asignadoPor: userUid, 
+                frecuenciaMeta: frecuenciaMeta,
+                estado: 'activo',
+                createdAt: new Date(), 
+                registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false }
+            });
+        }
+        // Limpiar formulario
+        setTituloHabito(""); 
+        setFrecuenciaMeta(7);
+        setEditingId(null);
+    } catch (e) { console.error(e); }
+  };
+
+  const cargarParaEditar = (habito: any) => {
+      setTituloHabito(habito.titulo);
+      setFrecuenciaMeta(habito.frecuenciaMeta || 7);
+      setEditingId(habito.id);
+  };
+
+  const cancelarEdicion = () => {
+      setTituloHabito("");
+      setFrecuenciaMeta(7);
+      setEditingId(null);
+  };
+
+  const archivarHabito = async (id: string, estadoActual: string) => {
+      const nuevoEstado = estadoActual === 'archivado' ? 'activo' : 'archivado';
+      const mensaje = nuevoEstado === 'archivado' 
+        ? "El hábito se moverá al historial. El paciente conserva sus puntos pero no lo verá hoy."
+        : "El hábito volverá a aparecer en la lista diaria.";
+      
+      if(confirm(mensaje)) {
+          await updateDoc(doc(db, "habitos", id), { estado: nuevoEstado });
+      }
   };
 
   const eliminarHabito = async (id: string) => {
-    if(confirm("¿Borrar?")) await deleteDoc(doc(db, "habitos", id));
+    if(confirm("⚠️ ¿ELIMINAR TOTALMENTE?\n\nSe borrarán los puntos y el historial. Úsalo solo para errores.")) {
+        await deleteDoc(doc(db, "habitos", id));
+    }
   };
 
-  // Nueva función de cálculo: Cuenta días completados
   const contarDiasCompletados = (reg: any) => Object.values(reg).filter(v => v === true).length;
 
   return (
     <div style={{textAlign: 'left'}}>
-      {/* HEADER DEL PANEL */}
+      {/* HEADER */}
       <div style={{
-          background: 'var(--bg-card)', 
-          padding: '20px', borderRadius: '16px', marginBottom: '30px', 
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', 
-          border: 'var(--glass-border)',
+          background: 'var(--bg-card)', padding: '20px', borderRadius: '16px', marginBottom: '30px', 
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: 'var(--glass-border)',
           display:'flex', justifyContent:'space-between', alignItems:'center'
       }}>
         <div>
@@ -76,12 +115,11 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
       <div style={{display: 'flex', gap: '30px', flexWrap: 'wrap'}}>
         
-        {/* --- LISTA PACIENTES --- */}
+        {/* LISTA PACIENTES */}
         <div style={{flex: 1, minWidth: '300px'}}>
           <h4 style={{textTransform:'uppercase', fontSize:'0.8rem', color:'var(--secondary)', letterSpacing:'2px', marginBottom:'15px'}}>
-            Pacientes Registrados
+            Pacientes
           </h4>
-          
           <div style={{display: 'grid', gap: '10px'}}>
             {pacientes.map(p => (
               <div key={p.id} 
@@ -91,128 +129,107 @@ export function PanelPsicologo({ userData, userUid }: any) {
                   border: pacienteSeleccionado?.id === p.id ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.05)',
                   padding: '15px', borderRadius: '12px', transition: 'all 0.2s', cursor: p.isAuthorized ? 'pointer' : 'default'
                 }}>
-                
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                     <div style={{flex: 1}}>
                         <div style={{fontWeight: 'bold', color: 'white', fontSize:'1.1rem'}}>{p.displayName}</div>
                         <div style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>{p.email}</div>
                     </div>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); autorizarPaciente(p.id, p.isAuthorized); }}
+                    <button onClick={(e) => { e.stopPropagation(); autorizarPaciente(p.id, p.isAuthorized); }}
                         style={{
                             padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', border:'none', cursor:'pointer', fontWeight: 'bold',
                             background: p.isAuthorized ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                             color: p.isAuthorized ? 'var(--secondary)' : '#EF4444',
-                        }}
-                    >
+                            border: p.isAuthorized ? '1px solid var(--secondary)' : '1px solid #EF4444'
+                        }}>
                         {p.isAuthorized ? "ACTIVO" : "APROBAR"}
                     </button>
                 </div>
-                {!p.isAuthorized && <small style={{color: '#EF4444', display:'block', marginTop:'5px', fontSize:'0.75rem'}}>⚠️ Autorización requerida</small>}
               </div>
             ))}
           </div>
         </div>
 
-        {/* --- ÁREA DE TRABAJO (DERECHA) --- */}
+        {/* ÁREA DE TRABAJO */}
         <div style={{flex: 2, minWidth: '320px'}}>
           {pacienteSeleccionado ? (
             <div style={{animation: 'fadeIn 0.5s'}}>
               
-              {/* FORMULARIO DE ASIGNACIÓN (MODIFICADO PARA DÍAS) */}
+              {/* FORMULARIO */}
               <div style={{
                   background: 'var(--bg-card)', padding: '25px', borderRadius: '16px', marginBottom: '20px', 
-                  border: 'var(--glass-border)', boxShadow: '0 4px 30px rgba(0,0,0,0.3)'
+                  border: editingId ? '1px solid var(--primary)' : 'var(--glass-border)',
+                  boxShadow: '0 4px 30px rgba(0,0,0,0.3)'
                 }}>
-                <h4 style={{color: 'white', marginTop:0}}>Asignar a: <span style={{color:'var(--primary)'}}>{pacienteSeleccionado.displayName}</span></h4>
+                <h4 style={{color: 'white', marginTop:0}}>
+                    {editingId ? "✏️ Editando Hábito" : `Asignar a: ${pacienteSeleccionado.displayName}`}
+                </h4>
                 
                 <div style={{display: 'flex', gap: '15px', alignItems:'center', flexWrap: 'wrap'}}>
                     <div style={{flex: 2, minWidth: '200px'}}>
-                        <input 
-                            type="text" 
-                            value={tituloHabito} 
-                            onChange={(e) => setTituloHabito(e.target.value)} 
-                            placeholder="Nombre del Hábito..." 
-                            style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white'}}
-                        />
+                        <input type="text" value={tituloHabito} onChange={(e) => setTituloHabito(e.target.value)} placeholder="Nombre del Hábito..." 
+                            style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white'}} />
                     </div>
                     <div style={{flex: 1, minWidth: '150px'}}>
-                        {/* SELECTOR DE FRECUENCIA */}
-                        <select 
-                            value={frecuenciaMeta} 
-                            onChange={(e) => setFrecuenciaMeta(Number(e.target.value))}
-                            style={{
-                                width: '100%', padding: '12px', borderRadius: '8px', 
-                                background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid rgba(255,255,255,0.2)',
-                                fontSize: '0.9rem'
-                            }}
-                        >
-                            <option value={1}>1 día / sem</option>
-                            <option value={2}>2 días / sem</option>
-                            <option value={3}>3 días / sem</option>
-                            <option value={4}>4 días / sem</option>
-                            <option value={5}>5 días / sem</option>
-                            <option value={6}>6 días / sem</option>
-                            <option value={7}>Diario (7 días)</option>
+                        <select value={frecuenciaMeta} onChange={(e) => setFrecuenciaMeta(Number(e.target.value))}
+                            style={{width: '100%', padding: '12px', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', fontSize: '0.9rem'}}>
+                            <option value={1}>1 día / sem</option> <option value={2}>2 días / sem</option> <option value={3}>3 días / sem</option>
+                            <option value={4}>4 días / sem</option> <option value={5}>5 días / sem</option> <option value={6}>6 días / sem</option> <option value={7}>Diario (7)</option>
                         </select>
                     </div>
-                    <button onClick={crearHabito} className="btn-primary" style={{height:'42px', minWidth: '100px', display:'flex', alignItems:'center', justifyContent:'center'}}>
-                        AGREGAR
+                    <button onClick={guardarHabito} className="btn-primary" style={{height:'42px', minWidth: '100px', display:'flex', alignItems:'center', justifyContent:'center'}}>
+                        {editingId ? "GUARDAR" : "AGREGAR"}
                     </button>
+                    {editingId && <button onClick={cancelarEdicion} style={{background:'none', border:'none', color:'#EF4444', cursor:'pointer'}}>Cancelar</button>}
                 </div>
               </div>
               
-              {/* LISTA DE HÁBITOS ASIGNADOS */}
+              {/* LISTA DE HÁBITOS */}
               <div style={{display: 'grid', gap: '10px'}}>
                 {habitosPaciente.map(h => {
                    const diasLogrados = contarDiasCompletados(h.registro);
-                   const meta = h.frecuenciaMeta || 7; // Fallback a 7 si es antiguo
+                   const meta = h.frecuenciaMeta || 7;
                    const porcentaje = Math.min(100, Math.round((diasLogrados / meta) * 100));
                    const cumplido = diasLogrados >= meta;
+                   const esArchivado = h.estado === 'archivado';
 
                    return (
                     <div key={h.id} style={{
-                        background: 'rgba(255,255,255,0.03)', padding: '15px 20px', borderRadius: '12px', 
+                        background: esArchivado ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.03)', 
+                        padding: '15px 20px', borderRadius: '12px', 
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-                        border: '1px solid rgba(255,255,255,0.05)'
+                        border: esArchivado ? '1px dashed rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.05)',
+                        opacity: esArchivado ? 0.6 : 1
                     }}>
                       <div style={{flex: 1}}>
                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5px'}}>
-                            <strong style={{color:'white', fontSize:'1.1rem', letterSpacing:'0.5px'}}>{h.titulo}</strong>
-                            <span style={{
-                                color: cumplido ? 'var(--secondary)' : 'var(--text-muted)', 
-                                fontSize: '0.8rem', fontWeight: 'bold'
-                            }}>
+                            <strong style={{color:'white', fontSize:'1.1rem', letterSpacing:'0.5px', textDecoration: esArchivado ? 'line-through' : 'none'}}>
+                                {h.titulo} {esArchivado && "(Graduado 🏁)"}
+                            </strong>
+                            <span style={{color: cumplido ? 'var(--secondary)' : 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 'bold'}}>
                                 {diasLogrados} / {meta} Días
                             </span>
                         </div>
-                        
-                        {/* Barra de progreso */}
                         <div style={{width: '100%', background: 'rgba(0,0,0,0.5)', height: '6px', borderRadius:'3px', overflow:'hidden'}}>
-                            <div style={{
-                                width: `${porcentaje}%`, 
-                                background: cumplido ? 'var(--secondary)' : 'var(--primary)', 
-                                height: '100%', borderRadius:'3px', 
-                                boxShadow: cumplido ? '0 0 10px var(--secondary)' : 'none'
-                            }}></div>
+                            <div style={{width: `${porcentaje}%`, background: cumplido ? 'var(--secondary)' : 'var(--primary)', height: '100%', borderRadius:'3px'}}></div>
                         </div>
                       </div>
                       
-                      <button onClick={() => eliminarHabito(h.id)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'1.2rem', opacity:0.7, marginLeft: '15px'}} title="Eliminar">
-                        🗑️
-                      </button>
+                      {/* BOTONERA */}
+                      <div style={{display:'flex', gap:'10px', marginLeft:'15px'}}>
+                          <button onClick={() => cargarParaEditar(h)} title="Editar" style={{background:'none', border:'none', cursor:'pointer', fontSize:'1.2rem'}}>✏️</button>
+                          <button onClick={() => archivarHabito(h.id, h.estado)} title={esArchivado ? "Reactivar" : "Graduar/Archivar"} style={{background:'none', border:'none', cursor:'pointer', fontSize:'1.2rem'}}>
+                            {esArchivado ? "⤴️" : "🏁"}
+                          </button>
+                          <button onClick={() => eliminarHabito(h.id)} title="Eliminar Totalmente" style={{background:'none', border:'none', cursor:'pointer', fontSize:'1.2rem', opacity:0.5}}>🗑️</button>
+                      </div>
                     </div>
                    )
                 })}
               </div>
             </div>
           ) : (
-            <div style={{
-                padding: '60px', textAlign: 'center', color: 'var(--text-muted)', 
-                border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '16px', background: 'rgba(0,0,0,0.2)'
-            }}>
-              <p style={{fontSize:'2rem', margin:0}}>👈</p>
-              <p>Selecciona un paciente para gestionar su terapia.</p>
+            <div style={{padding: '60px', textAlign: 'center', color: 'var(--text-muted)', border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '16px', background: 'rgba(0,0,0,0.2)'}}>
+              <p>Selecciona un paciente.</p>
             </div>
           )}
         </div>
