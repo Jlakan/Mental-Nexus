@@ -3,7 +3,52 @@ import { doc, updateDoc, collection, query, onSnapshot } from 'firebase/firestor
 import { db } from '../services/firebaseConfig';
 import { XP_POR_HABITO, TABLA_NIVELES, obtenerNivel, obtenerMetaSiguiente, PERSONAJES, PersonajeTipo, obtenerEtapaActual, STATS_CONFIG, StatTipo } from '../game/GameAssets';
 
-// --- UTILIDADES DE FECHA ---
+// --- COMPONENTE DE STAT (VERSIÓN GIGANTE PARA PACIENTE) ---
+const StatBadge = ({ type, value }: { type: 'vitalidad' | 'sabiduria' | 'carisma', value: number }) => {
+    const [showTooltip, setShowTooltip] = useState(false);
+    const config = STATS_CONFIG[type];
+
+    return (
+        <div 
+            style={{position: 'relative', cursor: 'pointer', flex: 1}}
+            // En móvil el click activa el modal principal en el padre, aquí solo manejamos hover para PC
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+        >
+            <div style={{
+                background: 'rgba(255,255,255,0.05)', 
+                border: '1px solid rgba(255,255,255,0.1)', 
+                borderRadius: '16px', padding: '15px 5px', textAlign: 'center', 
+                transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                height: '100%', justifyContent: 'center'
+            }}>
+                {/* ICONO GIGANTE (70px en el dashboard) */}
+                <img src={config.icon} alt={config.label} style={{width: '70px', height: '70px', objectFit:'contain', filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.3))'}} />
+                
+                <div>
+                    <div style={{fontWeight: 'bold', color: 'white', fontSize: '1.5rem', lineHeight: 1}}>{value}</div>
+                    <div style={{fontSize: '0.65rem', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop:'4px', color:'var(--text-muted)'}}>{config.label.split(' ')[0]}</div>
+                </div>
+            </div>
+
+            {/* Tooltip solo para PC (Hover rápido) */}
+            {showTooltip && (
+                <div style={{
+                    position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
+                    background: 'rgba(15, 23, 42, 0.98)', border: '1px solid var(--primary)',
+                    color: 'white', padding: '15px', borderRadius: '12px', width: '200px', zIndex: 100,
+                    fontSize: '0.8rem', boxShadow: '0 4px 30px rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)',
+                    textAlign: 'left', pointerEvents: 'none'
+                }}>
+                    <strong style={{color: 'var(--primary)', display: 'block', marginBottom: '5px', fontSize:'0.9rem'}}>{config.label}</strong>
+                    <p style={{margin:0, lineHeight:'1.4', color:'var(--text-muted)'}}>{config.desc}</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- UTILIDADES ---
 const getWeekId = (date: Date) => {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -15,24 +60,16 @@ const getWeekLabel = (offset: number) => offset === 0 ? "Semana Actual" : `Hace 
 
 export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   const [misHabitos, setMisHabitos] = useState<any[]>([]);
-  
-  // Estados del Juego
   const [puntosTotales, setPuntosTotales] = useState(0);
   const [gold, setGold] = useState(0);
   const [stats, setStats] = useState({ vitalidad: 0, sabiduria: 0, carisma: 0 });
-  
   const [nivel, setNivel] = useState(1);
   const [xpSiguiente, setXpSiguiente] = useState(100);
-  
   const [semanaOffset, setSemanaOffset] = useState(0);
   const [viewAvatar, setViewAvatar] = useState(false);
-  
-  // Estado para el Modal de Recursos (Igual que en Psicólogo)
   const [selectedResource, setSelectedResource] = useState<{ type: StatTipo, value: number } | null>(null);
 
   const currentWeekId = getWeekId(new Date());
-
-  // DATOS DEL AVATAR
   const avatarKey = userData.avatarKey as PersonajeTipo;
   const avatarDef = PERSONAJES[avatarKey] || PERSONAJES['atlas'];
   const etapaVisual = obtenerEtapaActual(avatarDef, nivel);
@@ -42,8 +79,7 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     const q = query(collection(db, "users", psicologoId, "pacientes", userUid, "habitos"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      // Auto-archivado
+      
       lista.forEach(async (h: any) => {
         if (h.ultimaSemanaRegistrada !== currentWeekId) {
             const registroAArchivar = h.registro || { L: false, M: false, X: false, J: false, V: false, S: false, D: false };
@@ -84,8 +120,7 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     });
     
     const xp = totalChecks * XP_POR_HABITO;
-    const oroCalculado = totalChecks * 5; // 5 Oro por hábito
-
+    const oroCalculado = totalChecks * 5;
     const nuevoNivel = obtenerNivel(xp);
     const meta = obtenerMetaSiguiente(nuevoNivel);
 
@@ -95,14 +130,13 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     setNivel(nuevoNivel);
     setXpSiguiente(meta);
 
-    // Guardamos stats en BD
     if (userData.xp !== xp) {
         try {
             await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid), {
                 nivel: nuevoNivel, gold: oroCalculado, xp: xp,
                 stats: { vitalidad: newVitalidad, sabiduria: newSabiduria, carisma: newCarisma }
             });
-        } catch (e) { console.error("Error sync stats", e); }
+        } catch (e) { console.error(e); }
     }
   };
 
@@ -145,39 +179,52 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
           </div>
       )}
 
-      {/* MODAL DE RECURSO/STAT */}
+      {/* MODAL DE RECURSO/STAT (TAMAÑO REAL) */}
       {selectedResource && (
           <div style={{
               position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999,
-              background:'rgba(0,0,0,0.8)', backdropFilter:'blur(8px)',
+              background:'rgba(0,0,0,0.85)', backdropFilter:'blur(15px)',
               display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'
           }} onClick={() => setSelectedResource(null)}>
               <div style={{
                   background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', 
-                  padding: '40px', textAlign: 'center', maxWidth: '400px', width:'100%',
-                  boxShadow: '0 0 50px rgba(6, 182, 212, 0.2)'
+                  padding: '40px', textAlign: 'center', maxWidth: '600px', width:'100%',
+                  boxShadow: '0 0 80px rgba(6, 182, 212, 0.15)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center'
               }} onClick={e => e.stopPropagation()}>
-                  <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : 'white', fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2rem', marginBottom:'20px'}}>
+                  
+                  <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : 'white', fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2.5rem', marginBottom:'30px', textShadow: '0 0 20px rgba(0,0,0,0.5)'}}>
                       {STATS_CONFIG[selectedResource.type].label}
                   </h2>
+                  
+                  {/* IMAGEN EN TAMAÑO REAL (SIN RESTRICCIÓN ESTRICTA, PERO QUE QUEPA EN PANTALLA) */}
                   <img 
                     src={STATS_CONFIG[selectedResource.type].icon} 
-                    style={{width: '150px', height: '150px', objectFit: 'contain', marginBottom: '20px', filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.2))'}} 
+                    style={{
+                        width: 'auto', 
+                        height: 'auto', 
+                        maxWidth: '100%', 
+                        maxHeight: '40vh', // Que ocupe hasta el 40% de la altura de la pantalla si es gigante
+                        marginBottom: '30px', 
+                        filter: 'drop-shadow(0 0 30px rgba(255,255,255,0.1))'
+                    }} 
                   />
-                  <div style={{fontSize: '3rem', fontWeight: 'bold', color: 'white', marginBottom: '20px', lineHeight: 1}}>
+                  
+                  <div style={{fontSize: '4rem', fontWeight: 'bold', color: 'white', marginBottom: '10px', lineHeight: 1, textShadow: '0 0 20px rgba(255,255,255,0.3)'}}>
                     {selectedResource.value}
                   </div>
-                  <p style={{color: 'var(--text-muted)', fontSize: '1.1rem', lineHeight: '1.6'}}>
+                  
+                  <p style={{color: 'var(--text-muted)', fontSize: '1.2rem', lineHeight: '1.6', maxWidth: '80%'}}>
                       {STATS_CONFIG[selectedResource.type].desc}
                   </p>
-                  <button onClick={() => setSelectedResource(null)} className="btn-primary" style={{marginTop: '30px', width: '100%'}}>CERRAR</button>
+                  
+                  <button onClick={() => setSelectedResource(null)} className="btn-primary" style={{marginTop: '40px', width: '200px', fontSize: '1.1rem'}}>ENTENDIDO</button>
               </div>
           </div>
       )}
 
-      {/* HUD PRINCIPAL (Con iconos grandes clickeables) */}
+      {/* HUD PRINCIPAL */}
       <div style={{background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: '20px', padding: '30px 20px', color: 'white', marginBottom: '30px', boxShadow: '0 0 20px rgba(6, 182, 212, 0.2)', border: '1px solid rgba(255,255,255,0.1)'}}>
-        
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'30px'}}>
             <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
                 {/* AVATAR CLICKEABLE */}
@@ -198,11 +245,11 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
                     <h2 style={{margin: 0, fontSize: '1.4rem', fontFamily: 'Rajdhani, sans-serif', color:'var(--primary)', textTransform:'uppercase'}}>
                         {etapaVisual.nombreClase}
                     </h2>
-                    <p style={{margin: 0, fontSize:'0.8rem', color:'var(--text-muted)'}}>Nivel {nivel}</p>
+                    <p style={{margin: 0, fontSize:'0.8rem', color:'var(--text-muted)'}}>Nivel {nivel} | {puntosTotales} XP</p>
                 </div>
             </div>
             
-            {/* ORO GIGANTE (Clickeable) */}
+            {/* ORO GIGANTE CLICKEABLE */}
             <div 
                 onClick={() => setSelectedResource({ type: 'gold', value: gold })}
                 style={{textAlign:'right', minWidth:'80px', cursor:'pointer', transition:'transform 0.1s'}}
@@ -219,37 +266,14 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
 
         {/* STATS GRID (GIGANTES Y CLICKEABLES) */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'25px'}}>
-            {/* Integridad */}
-            <div 
-                onClick={() => setSelectedResource({ type: 'vitalidad', value: stats.vitalidad })}
-                style={{textAlign:'center', cursor:'pointer', transition:'transform 0.1s'}}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}
-            >
-                <img src={STATS_CONFIG.vitalidad.icon} style={{width:'70px', height:'70px', objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(255,255,255,0.2))'}} />
-                <div style={{fontSize:'1.2rem', color:'white', fontWeight:'bold', marginTop:'5px'}}>{stats.vitalidad}</div>
+            <div onClick={() => setSelectedResource({ type: 'vitalidad', value: stats.vitalidad })} style={{transition:'transform 0.1s'}} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}>
+                <StatBadge type="vitalidad" value={stats.vitalidad} />
             </div>
-
-            {/* I+D */}
-            <div 
-                onClick={() => setSelectedResource({ type: 'sabiduria', value: stats.sabiduria })}
-                style={{textAlign:'center', cursor:'pointer', transition:'transform 0.1s'}}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}
-            >
-                <img src={STATS_CONFIG.sabiduria.icon} style={{width:'70px', height:'70px', objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(255,255,255,0.2))'}} />
-                <div style={{fontSize:'1.2rem', color:'white', fontWeight:'bold', marginTop:'5px'}}>{stats.sabiduria}</div>
+            <div onClick={() => setSelectedResource({ type: 'sabiduria', value: stats.sabiduria })} style={{transition:'transform 0.1s'}} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}>
+                <StatBadge type="sabiduria" value={stats.sabiduria} />
             </div>
-
-            {/* Red */}
-            <div 
-                onClick={() => setSelectedResource({ type: 'carisma', value: stats.carisma })}
-                style={{textAlign:'center', cursor:'pointer', transition:'transform 0.1s'}}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}
-            >
-                <img src={STATS_CONFIG.carisma.icon} style={{width:'70px', height:'70px', objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(255,255,255,0.2))'}} />
-                <div style={{fontSize:'1.2rem', color:'white', fontWeight:'bold', marginTop:'5px'}}>{stats.carisma}</div>
+            <div onClick={() => setSelectedResource({ type: 'carisma', value: stats.carisma })} style={{transition:'transform 0.1s'}} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}>
+                <StatBadge type="carisma" value={stats.carisma} />
             </div>
         </div>
 

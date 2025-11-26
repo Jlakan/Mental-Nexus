@@ -92,32 +92,46 @@ export function PanelPsicologo({ userData, userUid }: any) {
   return (
     <div style={{textAlign: 'left'}}>
         
-      {/* MODAL DE RECURSO/STAT */}
+      {/* MODAL DE RECURSO/STAT (TAMAÑO REAL) */}
       {selectedResource && (
           <div style={{
               position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999,
-              background:'rgba(0,0,0,0.8)', backdropFilter:'blur(8px)',
+              background:'rgba(0,0,0,0.85)', backdropFilter:'blur(15px)',
               display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'
           }} onClick={() => setSelectedResource(null)}>
               <div style={{
                   background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', 
-                  padding: '40px', textAlign: 'center', maxWidth: '400px', width:'100%',
-                  boxShadow: '0 0 50px rgba(6, 182, 212, 0.2)'
+                  padding: '40px', textAlign: 'center', maxWidth: '600px', width:'100%',
+                  boxShadow: '0 0 80px rgba(6, 182, 212, 0.15)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center'
               }} onClick={e => e.stopPropagation()}>
-                  <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : 'white', fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2rem', marginBottom:'20px'}}>
+                  
+                  <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : 'white', fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2.5rem', marginBottom:'30px', textShadow: '0 0 20px rgba(0,0,0,0.5)'}}>
                       {STATS_CONFIG[selectedResource.type].label}
                   </h2>
+                  
+                  {/* IMAGEN TAMAÑO REAL */}
                   <img 
                     src={STATS_CONFIG[selectedResource.type].icon} 
-                    style={{width: '150px', height: '150px', objectFit: 'contain', marginBottom: '20px', filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.2))'}} 
+                    style={{
+                        width: 'auto', 
+                        height: 'auto', 
+                        maxWidth: '100%', 
+                        maxHeight: '40vh',
+                        marginBottom: '30px', 
+                        filter: 'drop-shadow(0 0 30px rgba(255,255,255,0.1))'
+                    }} 
                   />
-                  <div style={{fontSize: '3rem', fontWeight: 'bold', color: 'white', marginBottom: '20px', lineHeight: 1}}>
+                  
+                  <div style={{fontSize: '4rem', fontWeight: 'bold', color: 'white', marginBottom: '10px', lineHeight: 1, textShadow: '0 0 20px rgba(255,255,255,0.3)'}}>
                     {selectedResource.value}
                   </div>
-                  <p style={{color: 'var(--text-muted)', fontSize: '1.1rem', lineHeight: '1.6'}}>
+                  
+                  <p style={{color: 'var(--text-muted)', fontSize: '1.2rem', lineHeight: '1.6', maxWidth: '80%'}}>
                       {STATS_CONFIG[selectedResource.type].desc}
                   </p>
-                  <button onClick={() => setSelectedResource(null)} className="btn-primary" style={{marginTop: '30px', width: '100%'}}>CERRAR</button>
+                  
+                  <button onClick={() => setSelectedResource(null)} className="btn-primary" style={{marginTop: '40px', width: '200px', fontSize: '1.1rem'}}>ENTENDIDO</button>
               </div>
           </div>
       )}
