@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { PERSONAJES, PersonajeTipo } from '../game/GameAssets';
+// Importamos el componente mágico
+import { AvatarPortrait } from '../components/AvatarPortrait';
 
 interface Props {
   userUid: string;
@@ -26,14 +28,19 @@ export function CharacterSelect({ userUid, psicologoId, onSelect }: Props) {
         nivel: 1,
         xp: 0
       };
+
+      // 1. Actualizar perfil raíz
       await updateDoc(doc(db, "users", userUid), updates);
+
+      // 2. Actualizar en subcolección del psicólogo (si existe)
       if (psicologoId) {
         await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid), updates);
       }
+      
       onSelect(); 
       window.location.reload();
     } catch (error) {
-      console.error(error);
+      console.error("Error guardando personaje:", error);
       alert("Error al guardar selección.");
     } finally {
       setLoading(false);
@@ -43,7 +50,7 @@ export function CharacterSelect({ userUid, psicologoId, onSelect }: Props) {
   return (
     <div className="container" style={{maxWidth: '1000px', textAlign: 'center'}}>
       <h2 style={{color: 'var(--primary)', fontSize: '2.5rem', marginBottom:'10px', fontFamily: 'Rajdhani, sans-serif'}}>ELIGE TU CAMINO</h2>
-      <p style={{color: 'var(--text-muted)', marginBottom: '40px', fontSize: '1.1rem'}}>Tu especialidad determinará tus habilidades.</p>
+      <p style={{color: 'var(--text-muted)', marginBottom: '40px', fontSize: '1.1rem'}}>Tu especialidad determinará tus habilidades y recompensas.</p>
 
       <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '40px'}}>
         {Object.values(PERSONAJES).map((p) => (
@@ -59,21 +66,27 @@ export function CharacterSelect({ userUid, psicologoId, onSelect }: Props) {
               position: 'relative', overflow: 'hidden'
             }}
           >
-            {/* CAMBIO: VIDEO EN LUGAR DE IMAGEN */}
+            {/* COMPONENTE AVATAR (FOTO -> VIDEO) */}
             <div style={{
                 width: '100%', height: '200px', marginBottom: '15px', borderRadius: '10px', overflow: 'hidden',
                 border: '1px solid rgba(255,255,255,0.1)', background: 'black'
             }}>
-                <video 
-                    src={p.etapas[0].imagen} // Toma la imagen/video de la etapa 1
-                    autoPlay loop muted playsInline 
-                    style={{width: '100%', height: '100%', objectFit: 'cover'}}
+                <AvatarPortrait 
+                    imgSrc={p.etapas[0].imagenEstatica}
+                    videoSrc={p.etapas[0].videoLoop}
+                    delaySeconds={30} // 30 segundos estático, luego acción
                 />
             </div>
             
             <h3 style={{fontSize: '1.3rem', margin: '0 0 5px 0', color: 'white', fontFamily: 'Rajdhani, sans-serif'}}>{p.nombre}</h3>
             <p style={{fontSize: '0.8rem', color: 'var(--secondary)', fontStyle:'italic', marginBottom:'10px'}}>"{p.lemaPrincipal}"</p>
             <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5', marginBottom: '15px'}}>{p.descripcion}</p>
+            
+            <div style={{display:'flex', justifyContent:'center', gap:'10px', fontSize:'0.8rem', opacity: 0.8}}>
+                {p.statsBase.vitalidad > 0 && <span title="Vitalidad">❤️ +{p.statsBase.vitalidad}</span>}
+                {p.statsBase.sabiduria > 0 && <span title="Sabiduría">🧠 +{p.statsBase.sabiduria}</span>}
+                {p.statsBase.carisma > 0 && <span title="Carisma">🤝 +{p.statsBase.carisma}</span>}
+            </div>
           </div>
         ))}
       </div>

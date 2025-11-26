@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { doc, updateDoc, collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
-// Importamos la función para saber en qué etapa visual está el personaje
 import { XP_POR_HABITO, TABLA_NIVELES, obtenerNivel, obtenerMetaSiguiente, PERSONAJES, PersonajeTipo, obtenerEtapaActual } from '../game/GameAssets';
+import { AvatarPortrait } from '../components/AvatarPortrait';
 
 const getWeekId = (date: Date) => {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -23,11 +23,10 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   const [semanaOffset, setSemanaOffset] = useState(0);
   const currentWeekId = getWeekId(new Date());
 
-  // DATOS DEL AVATAR
   const avatarKey = userData.avatarKey as PersonajeTipo;
-  const avatarDef = PERSONAJES[avatarKey] || PERSONAJES['atlas']; // Fallback a Atlas
+  const avatarDef = PERSONAJES[avatarKey] || PERSONAJES['atlas']; // Fallback
   
-  // Calculamos la etapa visual actual basada en el nivel del paciente
+  // Calculamos la etapa visual actual
   const etapaVisual = obtenerEtapaActual(avatarDef, nivel);
 
   useEffect(() => {
@@ -105,15 +104,7 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   const contarDias = (registro: any) => (!registro ? 0 : Object.values(registro).filter(val => val === true).length);
   const getDatosVisualizacion = (habito: any) => semanaOffset === 0 ? habito.registro : { L: false, M: false, X: false, J: false, V: false, S: false, D: false };
   const diasSemana = ["L", "M", "X", "J", "V", "S", "D"];
-  const habitosActivos = misHabitos.filter(h => h.estado !== 'archivado');
-  const promedioSemanal = habitosActivos.length > 0 
-    ? Math.round(habitosActivos.reduce((acc, h) => {
-          const dias = contarDias(h.registro);
-          const meta = h.frecuenciaMeta || 7;
-          return acc + Math.min(1, dias / meta);
-      }, 0) / habitosActivos.length * 100)
-    : 0;
-
+  
   const xpPiso = TABLA_NIVELES[nivel - 1] || 0;
   const xpTecho = xpSiguiente;
   const porcentajeNivel = Math.min(100, Math.max(0, Math.round(((puntosTotales - xpPiso) / (xpTecho - xpPiso)) * 100)));
@@ -126,16 +117,16 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'20px'}}>
             <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
                 
-                {/* AVATAR (VIDEO EN BUCLE) */}
+                {/* AVATAR (COMPONENTE MÁGICO) */}
                 <div style={{
                     width:'80px', height:'80px', borderRadius:'50%', overflow:'hidden',
                     boxShadow:'0 0 15px var(--primary)', border: '2px solid var(--primary)',
                     background: 'black'
                 }}>
-                    <video 
-                        src={etapaVisual.imagen} 
-                        autoPlay loop muted playsInline 
-                        style={{width:'100%', height:'100%', objectFit:'cover'}} 
+                    <AvatarPortrait 
+                        imgSrc={etapaVisual.imagenEstatica}
+                        videoSrc={etapaVisual.videoLoop}
+                        delaySeconds={30} 
                     />
                 </div>
 
@@ -152,7 +143,6 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
             </div>
         </div>
 
-        {/* Stats */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px', marginBottom:'20px'}}>
             <div style={{background:'rgba(239, 68, 68, 0.1)', border:'1px solid rgba(239, 68, 68, 0.3)', borderRadius:'10px', padding:'10px', textAlign:'center'}}>
                 <div style={{fontSize:'1.2rem'}}>❤️</div><div style={{fontWeight:'bold', color:'#EF4444', fontSize:'1.1rem'}}>{stats.vitalidad}</div>
@@ -165,7 +155,6 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
             </div>
         </div>
 
-        {/* Barra XP */}
         <div style={{width: '100%', background: 'rgba(255,255,255,0.1)', height: '8px', borderRadius: '10px', overflow: 'hidden'}}>
             <div style={{width: `${porcentajeNivel}%`, background: 'var(--secondary)', height: '100%', borderRadius: '10px', transition: 'width 1s ease', boxShadow:'0 0 10px var(--secondary)'}}></div>
         </div>
@@ -181,7 +170,7 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
         <button onClick={() => semanaOffset < 0 && setSemanaOffset(semanaOffset + 1)} style={{background: semanaOffset === 0 ? 'transparent' : 'rgba(255,255,255,0.1)', border: semanaOffset === 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', width:'40px', height:'40px', borderRadius:'50%', cursor: semanaOffset === 0 ? 'default' : 'pointer', color: semanaOffset === 0 ? 'gray' : 'white', fontSize:'1.2rem'}}>➡</button>
       </div>
 
-      {/* HÁBITOS */}
+      {/* LISTA DE HÁBITOS */}
       <div style={{display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
         {misHabitos.map(habito => {
           if (habito.estado === 'archivado') return null;
@@ -200,7 +189,12 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
                 <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
                     <span style={{fontSize: '0.75rem', color: 'var(--text-muted)', textTransform:'uppercase'}}>Objetivo:</span>
                     <span style={{background: 'rgba(255,255,255,0.1)', color: 'white', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold'}}>{meta} días/sem</span>
-                    <div style={{display:'flex', gap:'3px', marginLeft:'auto'}}>{habito.recompensas?.includes('vitalidad') && <span>❤️</span>}{habito.recompensas?.includes('sabiduria') && <span>🧠</span>}{habito.recompensas?.includes('carisma') && <span>🤝</span>}</div>
+                    <div style={{display:'flex', gap:'3px', marginLeft:'auto'}}>
+                        <span style={{fontSize:'0.8rem', color:'#F59E0B'}}>+5💰</span>
+                        {habito.recompensas?.includes('vitalidad') && <span>❤️</span>}
+                        {habito.recompensas?.includes('sabiduria') && <span>🧠</span>}
+                        {habito.recompensas?.includes('carisma') && <span>🤝</span>}
+                    </div>
                 </div>
               </div>
               <div style={{display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '12px'}}>
