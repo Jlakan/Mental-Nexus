@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { auth, googleProvider, db } from './services/firebaseConfig';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { 
-  doc, setDoc, updateDoc, collection, query, where, getDocs, getDoc 
+  doc, setDoc, updateDoc, addDoc, deleteDoc, 
+  collection, query, where, getDocs, onSnapshot, getDoc
 } from 'firebase/firestore';
 import './style.css';
 
@@ -12,9 +13,10 @@ import { IntroScreen } from './components/IntroScreen';
 import { PanelPaciente } from './screens/PanelPaciente';
 import { PanelPsicologo } from './screens/PanelPsicologo';
 import { PanelAdmin } from './screens/PanelAdmin';
+import { CharacterSelect } from './screens/CharacterSelect'; // <--- NUEVO IMPORT
 
 // ==========================================
-// PANTALLAS AUXILIARES (Login, Registro, Espera)
+// PANTALLAS AUXILIARES
 // ==========================================
 
 function LoginScreen() {
@@ -61,8 +63,6 @@ function VinculacionScreen({ userUid }: any) {
       await updateDoc(doc(db, "users", userUid), {
         psicologoId: psicologoDoc.id, estatus: "activo", asignadoEl: new Date()
       });
-      // También actualizamos la referencia en la subcolección del psicólogo si ya existe, o la creamos
-      // (Por simplicidad, recargamos para que el flujo principal lo maneje)
       window.location.reload(); 
     } catch (err) { console.error(err); setError("Error de conexión."); }
   };
@@ -197,15 +197,13 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 1. INTRO (Splash Screen)
-  if (showIntro) {
-      return <IntroScreen onFinish={() => setShowIntro(false)} />;
-  }
+  // 1. INTRO
+  if (showIntro) return <IntroScreen onFinish={() => setShowIntro(false)} />;
 
   // 2. CARGA
   if (loading) return <div className="loading">MENTAL NEXUS<br/><small style={{fontSize:'0.8rem', marginTop:'10px'}}>SYSTEM LOADING...</small></div>;
   
-  // 3. REGISTRO (Si existe en Auth pero no en Firestore)
+  // 3. REGISTRO
   if (user && (!userData || !userData.rol)) return <RegistroScreen user={user} />;
   
   // 4. LOGIN
@@ -213,7 +211,7 @@ export default function App() {
 
   // --- RUTAS DE LA APP ---
 
-  // VISTA HYBRIDA: ADMIN + PSICÓLOGO (TÚ)
+  // VISTA HYBRIDA: ADMIN + PSICÓLOGO
   if (userData.rol === 'psicologo' && userData.isAdmin) {
     return (
       <div style={{width: '100%', maxWidth: '1200px'}}>
@@ -245,6 +243,18 @@ export default function App() {
   // VISTA PACIENTE
   if (userData.rol === 'paciente') {
     if (!userData.isAuthorized) return <PantallaEspera mensaje="Conectando con el servidor del Terapeuta... (Espera autorización)" />;
+    
+    // --- AQUÍ ESTÁ LA MAGIA: CHECK DE AVATAR ---
+    if (!userData.avatarKey) {
+        return (
+            <CharacterSelect 
+                userUid={user.uid} 
+                psicologoId={userData.psicologoId} 
+                onSelect={() => window.location.reload()} 
+            />
+        );
+    }
+
     return (
         <div style={{width: '100%', maxWidth: '800px'}}>
             <Header userData={userData} setUserData={setUserData} user={user} />
