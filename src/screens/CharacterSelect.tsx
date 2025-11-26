@@ -6,7 +6,7 @@ import { PERSONAJES, PersonajeTipo } from '../game/GameAssets';
 interface Props {
   userUid: string;
   psicologoId?: string;
-  onSelect: () => void; // Función para avisar a App.tsx que ya terminamos
+  onSelect: () => void; 
 }
 
 export function CharacterSelect({ userUid, psicologoId, onSelect }: Props) {
@@ -22,23 +22,18 @@ export function CharacterSelect({ userUid, psicologoId, onSelect }: Props) {
         gold: 0,
         inventory: [],
         equippedItems: [],
-        // Inicializamos stats base según la clase elegida
-        stats: PERSONAJES[selected].statsBase
+        stats: PERSONAJES[selected].statsBase,
+        nivel: 1,
+        xp: 0
       };
-
-      // 1. Actualizar perfil raíz
       await updateDoc(doc(db, "users", userUid), updates);
-
-      // 2. Actualizar en subcolección del psicólogo (si existe)
       if (psicologoId) {
         await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid), updates);
       }
-      
-      // Recargar la página o ejecutar callback para avanzar
       onSelect(); 
-      window.location.reload(); // Forzamos recarga para que App.tsx detecte el cambio de rol
+      window.location.reload();
     } catch (error) {
-      console.error("Error guardando personaje:", error);
+      console.error(error);
       alert("Error al guardar selección.");
     } finally {
       setLoading(false);
@@ -47,8 +42,8 @@ export function CharacterSelect({ userUid, psicologoId, onSelect }: Props) {
 
   return (
     <div className="container" style={{maxWidth: '1000px', textAlign: 'center'}}>
-      <h2 style={{color: 'var(--primary)', fontSize: '2.5rem', marginBottom:'10px', fontFamily: 'Rajdhani'}}>ELIGE TU CAMINO</h2>
-      <p style={{color: 'var(--text-muted)', marginBottom: '40px', fontSize: '1.1rem'}}>Tu especialidad determinará tus habilidades y recompensas.</p>
+      <h2 style={{color: 'var(--primary)', fontSize: '2.5rem', marginBottom:'10px', fontFamily: 'Rajdhani, sans-serif'}}>ELIGE TU CAMINO</h2>
+      <p style={{color: 'var(--text-muted)', marginBottom: '40px', fontSize: '1.1rem'}}>Tu especialidad determinará tus habilidades.</p>
 
       <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '40px'}}>
         {Object.values(PERSONAJES).map((p) => (
@@ -64,18 +59,21 @@ export function CharacterSelect({ userUid, psicologoId, onSelect }: Props) {
               position: 'relative', overflow: 'hidden'
             }}
           >
-            <div style={{fontSize: '4rem', marginBottom: '15px', filter: selected === p.id ? 'drop-shadow(0 0 10px var(--primary))' : 'grayscale(0.5)'}}>
-                {p.emojiBase}
+            {/* CAMBIO: VIDEO EN LUGAR DE IMAGEN */}
+            <div style={{
+                width: '100%', height: '200px', marginBottom: '15px', borderRadius: '10px', overflow: 'hidden',
+                border: '1px solid rgba(255,255,255,0.1)', background: 'black'
+            }}>
+                <video 
+                    src={p.etapas[0].imagen} // Toma la imagen/video de la etapa 1
+                    autoPlay loop muted playsInline 
+                    style={{width: '100%', height: '100%', objectFit: 'cover'}}
+                />
             </div>
-            <h3 style={{fontSize: '1.3rem', margin: '0 0 10px 0', color: 'white', fontFamily: 'Rajdhani'}}>{p.nombre}</h3>
-            <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5', marginBottom: '15px'}}>{p.descripcion}</p>
             
-            {/* Stats iniciales */}
-            <div style={{display:'flex', justifyContent:'center', gap:'10px', fontSize:'0.8rem', opacity: 0.8}}>
-                {p.statsBase.vitalidad > 0 && <span title="Vitalidad">❤️ +{p.statsBase.vitalidad}</span>}
-                {p.statsBase.sabiduria > 0 && <span title="Sabiduría">🧠 +{p.statsBase.sabiduria}</span>}
-                {p.statsBase.carisma > 0 && <span title="Carisma">🤝 +{p.statsBase.carisma}</span>}
-            </div>
+            <h3 style={{fontSize: '1.3rem', margin: '0 0 5px 0', color: 'white', fontFamily: 'Rajdhani, sans-serif'}}>{p.nombre}</h3>
+            <p style={{fontSize: '0.8rem', color: 'var(--secondary)', fontStyle:'italic', marginBottom:'10px'}}>"{p.lemaPrincipal}"</p>
+            <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5', marginBottom: '15px'}}>{p.descripcion}</p>
           </div>
         ))}
       </div>
