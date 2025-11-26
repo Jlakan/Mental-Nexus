@@ -3,49 +3,47 @@ import { doc, updateDoc, collection, query, onSnapshot } from 'firebase/firestor
 import { db } from '../services/firebaseConfig';
 import { XP_POR_HABITO, TABLA_NIVELES, obtenerNivel, obtenerMetaSiguiente, PERSONAJES, PersonajeTipo, obtenerEtapaActual, STATS_CONFIG } from '../game/GameAssets';
 
-// --- COMPONENTE DE STAT CON TOOLTIP (Hover/Click) ---
+// --- COMPONENTE DE STAT GRANDE ---
 const StatBadge = ({ type, value, isGold = false }: { type: 'vitalidad' | 'sabiduria' | 'carisma' | 'gold', value: number, isGold?: boolean }) => {
     const [showTooltip, setShowTooltip] = useState(false);
     const config = STATS_CONFIG[type];
 
     return (
         <div 
-            style={{position: 'relative', cursor: 'help'}}
+            style={{position: 'relative', cursor: 'help', flex: 1}}
             onMouseEnter={() => setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
-            onClick={() => setShowTooltip(!showTooltip)} // Para móvil
+            onClick={() => setShowTooltip(!showTooltip)}
         >
             <div style={{
                 background: isGold ? 'rgba(245, 158, 11, 0.1)' : 'rgba(255,255,255,0.05)', 
                 border: isGold ? '1px solid #F59E0B' : '1px solid rgba(255,255,255,0.2)', 
-                borderRadius: '12px', padding: '10px', textAlign: 'center', minWidth: '80px',
-                transition: 'all 0.2s'
+                borderRadius: '16px', padding: '15px 10px', textAlign: 'center', 
+                transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px'
             }}>
-                <img src={config.icon} alt={config.label} style={{width: '32px', height: '32px', marginBottom: '5px', filter: 'drop-shadow(0 0 5px rgba(255,255,255,0.3))'}} />
-                <div style={{fontWeight: 'bold', color: isGold ? '#F59E0B' : 'white', fontSize: '1.1rem'}}>{value}</div>
-                <div style={{fontSize: '0.6rem', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.5px'}}>{isGold ? 'FONDOS' : config.label.split(' ')[0]}</div>
+                {/* ICONO MÁS GRANDE (50px) */}
+                <img src={config.icon} alt={config.label} style={{width: '50px', height: '50px', objectFit:'contain', filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))'}} />
+                
+                <div style={{fontWeight: 'bold', color: isGold ? '#F59E0B' : 'white', fontSize: '1.4rem', lineHeight: 1}}>{value}</div>
+                <div style={{fontSize: '0.65rem', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop:'2px'}}>{isGold ? 'FONDOS' : config.label.split(' ')[0]}</div>
             </div>
 
-            {/* TOOLTIP FLOTANTE */}
             {showTooltip && (
                 <div style={{
                     position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
-                    background: 'rgba(15, 23, 42, 0.95)', border: '1px solid var(--primary)',
-                    color: 'white', padding: '10px', borderRadius: '8px', width: '200px', zIndex: 100,
-                    fontSize: '0.75rem', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', backdropFilter: 'blur(5px)',
+                    background: 'rgba(15, 23, 42, 0.98)', border: '1px solid var(--primary)',
+                    color: 'white', padding: '15px', borderRadius: '12px', width: '220px', zIndex: 100,
+                    fontSize: '0.8rem', boxShadow: '0 4px 30px rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)',
                     textAlign: 'left'
                 }}>
-                    <strong style={{color: 'var(--primary)', display: 'block', marginBottom: '5px'}}>{config.label}</strong>
-                    {config.desc}
-                    {/* Triángulo abajo */}
-                    <div style={{position:'absolute', top:'100%', left:'50%', marginLeft:'-5px', borderWidth:'5px', borderStyle:'solid', borderColor:'var(--primary) transparent transparent transparent'}}></div>
+                    <strong style={{color: 'var(--primary)', display: 'block', marginBottom: '5px', fontSize:'0.9rem'}}>{config.label}</strong>
+                    <p style={{margin:0, lineHeight:'1.4', color:'var(--text-muted)'}}>{config.desc}</p>
                 </div>
             )}
         </div>
     );
 };
 
-// --- UTILIDADES ---
 const getWeekId = (date: Date) => {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -63,6 +61,7 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   const [nivel, setNivel] = useState(1);
   const [xpSiguiente, setXpSiguiente] = useState(100);
   const [semanaOffset, setSemanaOffset] = useState(0);
+  const [viewAvatar, setViewAvatar] = useState(false); // Nuevo estado para el Modal
   const currentWeekId = getWeekId(new Date());
 
   const avatarKey = userData.avatarKey as PersonajeTipo;
@@ -74,7 +73,6 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     const q = query(collection(db, "users", psicologoId, "pacientes", userUid, "habitos"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Auto-archivado simplificado para el ejemplo
       setMisHabitos(lista);
       calcularGamificacion(lista);
     });
@@ -112,6 +110,15 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     setStats({ vitalidad: newVitalidad, sabiduria: newSabiduria, carisma: newCarisma });
     setNivel(nuevoNivel);
     setXpSiguiente(meta);
+
+    if (userData.xp !== xp) {
+        try {
+            await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid), {
+                nivel: nuevoNivel, gold: oroCalculado, xp: xp,
+                stats: { vitalidad: newVitalidad, sabiduria: newSabiduria, carisma: newCarisma }
+            });
+        } catch (e) { console.error(e); }
+    }
   };
 
   const toggleDia = async (habitoId: string, dia: string, estadoActual: boolean) => {
@@ -133,24 +140,57 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   return (
     <div style={{textAlign: 'left', paddingBottom: '50px'}}>
       
+      {/* MODAL DE AVATAR (ZOOM) */}
+      {viewAvatar && (
+          <div style={{
+              position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999,
+              background:'rgba(0,0,0,0.9)', backdropFilter:'blur(10px)',
+              display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', padding:'20px'
+          }} onClick={() => setViewAvatar(false)}>
+              
+              <div style={{width:'100%', maxWidth:'500px', background:'var(--bg-card)', border:'var(--glass-border)', borderRadius:'20px', padding:'20px', textAlign:'center', boxShadow:'0 0 50px rgba(6, 182, 212, 0.3)'}} onClick={e => e.stopPropagation()}>
+                  <h2 style={{color:'var(--primary)', fontFamily:'Rajdhani', textTransform:'uppercase', fontSize:'2rem', marginBottom:'10px'}}>{etapaVisual.nombreClase}</h2>
+                  <div style={{width:'100%', aspectRatio:'1/1', borderRadius:'15px', overflow:'hidden', border:'2px solid var(--primary)', marginBottom:'20px', background:'black'}}>
+                    <video src={etapaVisual.imagen} autoPlay loop muted playsInline style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                  </div>
+                  <p style={{color:'var(--secondary)', fontStyle:'italic', fontSize:'1.1rem', marginBottom:'15px'}}>"{etapaVisual.lema}"</p>
+                  <p style={{color:'var(--text-muted)'}}>{etapaVisual.descripcionVisual}</p>
+                  <button onClick={() => setViewAvatar(false)} className="btn-primary" style={{marginTop:'20px', width:'100%'}}>CERRAR</button>
+              </div>
+          </div>
+      )}
+
       {/* HUD PRINCIPAL */}
       <div style={{background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: '20px', padding: '20px', color: 'white', marginBottom: '30px', boxShadow: '0 0 20px rgba(6, 182, 212, 0.2)', border: '1px solid rgba(255,255,255,0.1)'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'20px'}}>
             <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
-                <div style={{width:'80px', height:'80px', borderRadius:'50%', overflow:'hidden', boxShadow:'0 0 15px var(--primary)', border: '2px solid var(--primary)', background: 'black'}}>
+                
+                {/* AVATAR CLICKEABLE */}
+                <div 
+                    onClick={() => setViewAvatar(true)}
+                    style={{
+                        width:'80px', height:'80px', borderRadius:'50%', overflow:'hidden', 
+                        boxShadow:'0 0 15px var(--primary)', border: '2px solid var(--primary)', 
+                        background: 'black', cursor: 'pointer', transition: 'transform 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}
+                >
                     <video src={etapaVisual.imagen} autoPlay loop muted playsInline style={{width:'100%', height:'100%', objectFit:'cover'}} />
                 </div>
+
                 <div>
                     <h2 style={{margin: 0, fontSize: '1.4rem', fontFamily: 'Rajdhani, sans-serif', color:'var(--primary)', textTransform:'uppercase'}}>{etapaVisual.nombreClase}</h2>
                     <p style={{margin: 0, fontSize:'0.8rem', color:'var(--text-muted)'}}>Nivel {nivel} | {puntosTotales} XP</p>
                 </div>
             </div>
-            {/* ORO */}
+            
+            {/* ORO GRANDE */}
             <StatBadge type="gold" value={gold} isGold />
         </div>
 
-        {/* STATS GRID (NUEVO DISEÑO CON IMÁGENES) */}
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px', marginBottom:'20px'}}>
+        {/* STATS GRID (GRANDES) */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'20px'}}>
             <StatBadge type="vitalidad" value={stats.vitalidad} />
             <StatBadge type="sabiduria" value={stats.sabiduria} />
             <StatBadge type="carisma" value={stats.carisma} />
@@ -189,25 +229,21 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
                 <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
                     <span style={{background: 'rgba(255,255,255,0.1)', color: 'white', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold'}}>{meta} días/sem</span>
                     <div style={{display:'flex', gap:'5px', marginLeft:'auto'}}>
-                        <img src="/recursos.png" style={{width:'16px'}} title="+5 Fondos" />
-                        {habito.recompensas?.includes('vitalidad') && <img src={STATS_CONFIG.vitalidad.icon} style={{width:'16px'}} title="Integridad" />}
-                        {habito.recompensas?.includes('sabiduria') && <img src={STATS_CONFIG.sabiduria.icon} style={{width:'16px'}} title="I+D" />}
-                        {habito.recompensas?.includes('carisma') && <img src={STATS_CONFIG.carisma.icon} style={{width:'16px'}} title="Red" />}
+                        <img src="/recursos.png" style={{width:'20px'}} title="+5 Fondos" />
+                        {habito.recompensas?.includes('vitalidad') && <img src={STATS_CONFIG.vitalidad.icon} style={{width:'20px'}} />}
+                        {habito.recompensas?.includes('sabiduria') && <img src={STATS_CONFIG.sabiduria.icon} style={{width:'20px'}} />}
+                        {habito.recompensas?.includes('carisma') && <img src={STATS_CONFIG.carisma.icon} style={{width:'20px'}} />}
                     </div>
                 </div>
               </div>
-              {/* Botones de Días */}
               <div style={{display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '12px'}}>
                 {diasSemana.map(dia => (
                   <div key={dia} style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'}}>
                       <span style={{fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold'}}>{dia}</span>
-                      <button onClick={() => toggleDia(habito.id, dia, datosMostrar[dia])} style={{width: '32px', height: '32px', borderRadius: '8px', border: 'none', cursor: esHistorial ? 'not-allowed' : 'pointer', background: datosMostrar[dia] ? 'var(--secondary)' : 'rgba(255,255,255,0.05)', color: datosMostrar[dia] ? 'black' : 'white', boxShadow: datosMostrar[dia] ? '0 0 10px var(--secondary)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease', transform: datosMostrar[dia] ? 'scale(1.1)' : 'scale(1)'}}>
-                        {datosMostrar[dia] && "✓"}
-                      </button>
+                      <button onClick={() => toggleDia(habito.id, dia, datosMostrar[dia])} style={{width: '32px', height: '32px', borderRadius: '8px', border: 'none', cursor: esHistorial ? 'not-allowed' : 'pointer', background: datosMostrar[dia] ? 'var(--secondary)' : 'rgba(255,255,255,0.05)', color: datosMostrar[dia] ? 'black' : 'white', boxShadow: datosMostrar[dia] ? '0 0 10px var(--secondary)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease', transform: datosMostrar[dia] ? 'scale(1.1)' : 'scale(1)'}}>{datosMostrar[dia] && "✓"}</button>
                   </div>
                 ))}
               </div>
-              {/* Barra individual */}
               <div style={{marginTop: '15px', display: 'flex', alignItems: 'center', gap: '10px'}}>
                 <div style={{flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px'}}><div style={{width: `${porcentaje}%`, background: 'var(--primary)', height: '100%', borderRadius: '2px', transition: 'width 0.5s', boxShadow: '0 0 5px var(--primary)'}}></div></div>
                 <span style={{fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 'bold'}}>{diasLogrados}/{meta}</span>
