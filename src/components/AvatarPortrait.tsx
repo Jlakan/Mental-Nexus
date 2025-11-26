@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 interface Props {
   imgSrc: string;
   videoSrc: string;
-  delaySeconds?: number; // Opcional, por defecto 30
+  delaySeconds?: number;
   style?: React.CSSProperties;
 }
 
@@ -11,22 +11,22 @@ export function AvatarPortrait({ imgSrc, videoSrc, delaySeconds = 30, style }: P
   const [showVideo, setShowVideo] = useState(false);
 
   useEffect(() => {
-    // Reiniciar el timer si cambian los archivos (ej: subes de nivel)
     setShowVideo(false);
-    
     const timer = setTimeout(() => {
       setShowVideo(true);
-    }, delaySeconds * 1000); // Convertir a milisegundos
+    }, delaySeconds * 1000);
 
-    return () => clearTimeout(timer); // Limpieza si el componente se desmonta
+    return () => clearTimeout(timer); 
   }, [imgSrc, videoSrc, delaySeconds]);
 
   return (
-    <div style={{ position: 'relative', overflow: 'hidden', ...style }}>
+    // CAMBIO CLAVE: width y height al 100% para llenar el contenedor padre
+    <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%', ...style }}>
       {showVideo ? (
         <video 
           src={videoSrc} 
           autoPlay loop muted playsInline 
+          // objectFit: 'cover' es lo que hace que no queden bordes negros
           style={{ width: '100%', height: '100%', objectFit: 'cover', animation: 'fadeIn 1s' }} 
         />
       ) : (

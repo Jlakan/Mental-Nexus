@@ -21,12 +21,14 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   const [nivel, setNivel] = useState(1);
   const [xpSiguiente, setXpSiguiente] = useState(100);
   const [semanaOffset, setSemanaOffset] = useState(0);
+  
+  // ESTADO PARA EL ZOOM DEL AVATAR
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+
   const currentWeekId = getWeekId(new Date());
 
   const avatarKey = userData.avatarKey as PersonajeTipo;
-  const avatarDef = PERSONAJES[avatarKey] || PERSONAJES['atlas']; // Fallback
-  
-  // Calculamos la etapa visual actual
+  const avatarDef = PERSONAJES[avatarKey] || PERSONAJES['atlas']; 
   const etapaVisual = obtenerEtapaActual(avatarDef, nivel);
 
   useEffect(() => {
@@ -112,17 +114,63 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   return (
     <div style={{textAlign: 'left', paddingBottom: '50px'}}>
       
+      {/* MODAL DE ZOOM DEL AVATAR */}
+      {showAvatarModal && (
+        <div 
+            onClick={() => setShowAvatarModal(false)}
+            style={{
+                position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                background: 'rgba(0,0,0,0.85)', zIndex: 10000, backdropFilter: 'blur(5px)',
+                display: 'flex', justifyContent: 'center', alignItems: 'center',
+                animation: 'fadeIn 0.3s'
+            }}
+        >
+            <div 
+                onClick={(e) => e.stopPropagation()} // Evitar cierre al hacer clic en la tarjeta
+                style={{
+                    width: '90%', maxWidth: '400px', background: 'var(--bg-card)', 
+                    border: '2px solid var(--primary)', borderRadius: '20px', 
+                    padding: '20px', textAlign: 'center', boxShadow: '0 0 30px rgba(6, 182, 212, 0.3)',
+                    position: 'relative'
+                }}
+            >
+                <h2 style={{margin: '0 0 10px 0', color: 'var(--primary)', fontFamily: 'Rajdhani'}}>{etapaVisual.nombreClase}</h2>
+                
+                {/* Video Grande */}
+                <div style={{
+                    width: '100%', height: '400px', borderRadius: '12px', overflow: 'hidden', 
+                    background: 'black', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '15px'
+                }}>
+                    <AvatarPortrait 
+                        imgSrc={etapaVisual.imagenEstatica}
+                        videoSrc={etapaVisual.videoLoop}
+                        delaySeconds={0} // Se mueve inmediatamente
+                    />
+                </div>
+
+                <p style={{color: 'white', fontStyle: 'italic'}}>"{etapaVisual.lema}"</p>
+                
+                <button onClick={() => setShowAvatarModal(false)} className="btn-primary" style={{marginTop: '10px', width: '100%'}}>CERRAR</button>
+            </div>
+        </div>
+      )}
+
       {/* HUD PRINCIPAL */}
       <div style={{background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: '20px', padding: '20px', color: 'white', marginBottom: '30px', boxShadow: '0 0 20px rgba(6, 182, 212, 0.2)', border: '1px solid rgba(255,255,255,0.1)'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'20px'}}>
             <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
                 
-                {/* AVATAR (COMPONENTE MÁGICO) */}
-                <div style={{
-                    width:'80px', height:'80px', borderRadius:'50%', overflow:'hidden',
-                    boxShadow:'0 0 15px var(--primary)', border: '2px solid var(--primary)',
-                    background: 'black'
-                }}>
+                {/* AVATAR PEQUEÑO (Clickeable) */}
+                <div 
+                    onClick={() => setShowAvatarModal(true)}
+                    style={{
+                        width:'80px', height:'80px', borderRadius:'50%', overflow:'hidden',
+                        boxShadow:'0 0 15px var(--primary)', border: '2px solid var(--primary)',
+                        background: 'black', cursor: 'pointer', transition: 'transform 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                >
                     <AvatarPortrait 
                         imgSrc={etapaVisual.imagenEstatica}
                         videoSrc={etapaVisual.videoLoop}
@@ -143,6 +191,7 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
             </div>
         </div>
 
+        {/* Stats Grid */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px', marginBottom:'20px'}}>
             <div style={{background:'rgba(239, 68, 68, 0.1)', border:'1px solid rgba(239, 68, 68, 0.3)', borderRadius:'10px', padding:'10px', textAlign:'center'}}>
                 <div style={{fontSize:'1.2rem'}}>❤️</div><div style={{fontWeight:'bold', color:'#EF4444', fontSize:'1.1rem'}}>{stats.vitalidad}</div>
@@ -155,6 +204,7 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
             </div>
         </div>
 
+        {/* Barra XP */}
         <div style={{width: '100%', background: 'rgba(255,255,255,0.1)', height: '8px', borderRadius: '10px', overflow: 'hidden'}}>
             <div style={{width: `${porcentajeNivel}%`, background: 'var(--secondary)', height: '100%', borderRadius: '10px', transition: 'width 1s ease', boxShadow:'0 0 10px var(--secondary)'}}></div>
         </div>
