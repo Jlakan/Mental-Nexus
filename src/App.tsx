@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { auth, googleProvider, db } from './services/firebaseConfig';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { 
-  doc, setDoc, updateDoc, addDoc, deleteDoc, 
-  collection, query, where, getDocs, onSnapshot, getDoc
+  doc, setDoc, updateDoc, collection, query, where, getDocs, getDoc 
 } from 'firebase/firestore';
 import './style.css';
 
@@ -13,10 +12,10 @@ import { IntroScreen } from './components/IntroScreen';
 import { PanelPaciente } from './screens/PanelPaciente';
 import { PanelPsicologo } from './screens/PanelPsicologo';
 import { PanelAdmin } from './screens/PanelAdmin';
-import { CharacterSelect } from './screens/CharacterSelect'; // <--- NUEVO IMPORT
+import { CharacterSelect } from './screens/CharacterSelect';
 
 // ==========================================
-// PANTALLAS AUXILIARES
+// PANTALLAS AUXILIARES (Login, Registro, Espera)
 // ==========================================
 
 function LoginScreen() {
@@ -44,39 +43,6 @@ function PantallaEspera({ mensaje }: { mensaje?: string }) {
         <p style={{margin: 0, fontWeight: 'bold', color: 'var(--text-main)'}}>{mensaje || "Tu cuenta está pendiente de autorización."}</p>
       </div>
       <button onClick={() => signOut(auth)} className="btn-link" style={{color: 'var(--secondary)'}}>Cerrar Sesión</button>
-    </div>
-  );
-}
-
-function VinculacionScreen({ userUid }: any) {
-  const [codigo, setCodigo] = useState("");
-  const [error, setError] = useState("");
-
-  const validarCodigo = async () => {
-    if (!codigo) return;
-    try {
-      const q = query(collection(db, "users"), where("codigoVinculacion", "==", codigo));
-      const querySnapshot = await getDocs(q);
-      if (querySnapshot.empty) { setError("Código no válido."); return; }
-      
-      const psicologoDoc = querySnapshot.docs[0];
-      await updateDoc(doc(db, "users", userUid), {
-        psicologoId: psicologoDoc.id, estatus: "activo", asignadoEl: new Date()
-      });
-      window.location.reload(); 
-    } catch (err) { console.error(err); setError("Error de conexión."); }
-  };
-
-  return (
-    <div className="container" style={{textAlign:'center', maxWidth: '500px'}}>
-      <h2>🔑 Vincular con Especialista</h2>
-      <p>Tu cuenta fue aprobada. Ingresa el código de tu terapeuta:</p>
-      <div style={{margin: '20px 0'}}>
-        <input type="text" placeholder="Ej: PSI-1234" className="input-code" value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} />
-      </div>
-      {error && <p style={{color: '#EF4444'}}>{error}</p>}
-      <button onClick={validarCodigo} className="btn-primary">Vincular</button>
-      <button onClick={() => signOut(auth)} className="btn-link" style={{marginTop:'20px'}}>Salir</button>
     </div>
   );
 }
@@ -197,13 +163,15 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 1. INTRO
-  if (showIntro) return <IntroScreen onFinish={() => setShowIntro(false)} />;
+  // 1. INTRO (Splash Screen)
+  if (showIntro) {
+      return <IntroScreen onFinish={() => setShowIntro(false)} />;
+  }
 
   // 2. CARGA
   if (loading) return <div className="loading">MENTAL NEXUS<br/><small style={{fontSize:'0.8rem', marginTop:'10px'}}>SYSTEM LOADING...</small></div>;
   
-  // 3. REGISTRO
+  // 3. REGISTRO (Si existe en Auth pero no en Firestore)
   if (user && (!userData || !userData.rol)) return <RegistroScreen user={user} />;
   
   // 4. LOGIN
@@ -211,7 +179,7 @@ export default function App() {
 
   // --- RUTAS DE LA APP ---
 
-  // VISTA HYBRIDA: ADMIN + PSICÓLOGO
+  // VISTA HYBRIDA: ADMIN + PSICÓLOGO (TÚ)
   if (userData.rol === 'psicologo' && userData.isAdmin) {
     return (
       <div style={{width: '100%', maxWidth: '1200px'}}>
@@ -244,7 +212,7 @@ export default function App() {
   if (userData.rol === 'paciente') {
     if (!userData.isAuthorized) return <PantallaEspera mensaje="Conectando con el servidor del Terapeuta... (Espera autorización)" />;
     
-    // --- AQUÍ ESTÁ LA MAGIA: CHECK DE AVATAR ---
+    // CHECK DE AVATAR: Si no tiene personaje, mostramos selección
     if (!userData.avatarKey) {
         return (
             <CharacterSelect 
@@ -255,11 +223,13 @@ export default function App() {
         );
     }
 
+    // Si ya tiene personaje, entramos al panel
     return (
         <div style={{width: '100%', maxWidth: '800px'}}>
             <Header userData={userData} setUserData={setUserData} user={user} />
             <div className="container" style={{marginTop: '20px'}}>
-                <PanelPaciente userUid={user.uid} psicologoId={userData.psicologoId} />
+                {/* AQUÍ ESTÁ LA CORRECCIÓN: Pasamos userData */}
+                <PanelPaciente userUid={user.uid} psicologoId={userData.psicologoId} userData={userData} />
             </div>
         </div>
     );
