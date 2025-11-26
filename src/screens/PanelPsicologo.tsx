@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, updateDoc, addDoc, deleteDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
-import { STATS_CONFIG } from '../game/GameAssets';
+import { STATS_CONFIG, StatTipo } from '../game/GameAssets';
 
 // Iconos SVG para acciones
 const IconEdit = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
@@ -18,6 +18,9 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const [frecuenciaMeta, setFrecuenciaMeta] = useState(7);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [recompensas, setRecompensas] = useState<string[]>([]);
+
+  // Estado para el Modal de Recursos
+  const [selectedResource, setSelectedResource] = useState<{ type: StatTipo, value: number } | null>(null);
 
   useEffect(() => {
     const colRef = collection(db, "users", userUid, "pacientes");
@@ -88,6 +91,37 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
   return (
     <div style={{textAlign: 'left'}}>
+        
+      {/* MODAL DE RECURSO/STAT */}
+      {selectedResource && (
+          <div style={{
+              position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999,
+              background:'rgba(0,0,0,0.8)', backdropFilter:'blur(8px)',
+              display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'
+          }} onClick={() => setSelectedResource(null)}>
+              <div style={{
+                  background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', 
+                  padding: '40px', textAlign: 'center', maxWidth: '400px', width:'100%',
+                  boxShadow: '0 0 50px rgba(6, 182, 212, 0.2)'
+              }} onClick={e => e.stopPropagation()}>
+                  <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : 'white', fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2rem', marginBottom:'20px'}}>
+                      {STATS_CONFIG[selectedResource.type].label}
+                  </h2>
+                  <img 
+                    src={STATS_CONFIG[selectedResource.type].icon} 
+                    style={{width: '150px', height: '150px', objectFit: 'contain', marginBottom: '20px', filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.2))'}} 
+                  />
+                  <div style={{fontSize: '3rem', fontWeight: 'bold', color: 'white', marginBottom: '20px', lineHeight: 1}}>
+                    {selectedResource.value}
+                  </div>
+                  <p style={{color: 'var(--text-muted)', fontSize: '1.1rem', lineHeight: '1.6'}}>
+                      {STATS_CONFIG[selectedResource.type].desc}
+                  </p>
+                  <button onClick={() => setSelectedResource(null)} className="btn-primary" style={{marginTop: '30px', width: '100%'}}>CERRAR</button>
+              </div>
+          </div>
+      )}
+
       <div style={{background: 'var(--bg-card)', padding: '20px', borderRadius: '16px', marginBottom: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: 'var(--glass-border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <div><h3 style={{margin:0, color: 'var(--primary)', fontSize:'1.5rem'}}>👨‍⚕️ Panel de Control</h3><p style={{margin:0, fontSize:'0.9rem', color:'var(--text-muted)'}}>Código: <strong style={{color:'white'}}>{userData.codigoVinculacion}</strong></p></div>
       </div>
@@ -111,7 +145,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
           {pacienteSeleccionado ? (
             <div style={{animation: 'fadeIn 0.5s'}}>
               
-              {/* FICHA DE RECURSOS (ICONOS 80px - 100px) */}
+              {/* FICHA DE RECURSOS CLICKEABLE */}
               <div style={{background: 'linear-gradient(90deg, rgba(15,23,42,0.8) 0%, rgba(30,41,59,0.8) 100%)', padding: '30px', borderRadius: '16px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-around', alignItems: 'center'}}>
                   
                   <div style={{textAlign:'center'}}>
@@ -119,24 +153,48 @@ export function PanelPsicologo({ userData, userUid }: any) {
                       <div style={{fontSize:'0.8rem', color:'var(--text-muted)', letterSpacing: '2px'}}>NIVEL</div>
                   </div>
                   
-                  <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
-                      {/* FONDOS: 100px */}
+                  {/* FONDOS (Click) */}
+                  <div 
+                    onClick={() => setSelectedResource({ type: 'gold', value: pacienteSeleccionado.gold || 0 })}
+                    style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', cursor: 'pointer', transition: 'transform 0.1s'}}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}
+                  >
                       <img src={STATS_CONFIG.gold.icon} style={{width: '100px', height: '100px', objectFit:'contain', filter:'drop-shadow(0 0 15px rgba(245, 158, 11, 0.5))'}}/>
                       <div style={{fontSize:'1.5rem', color:'#F59E0B', fontWeight:'bold', marginTop:'10px'}}>{pacienteSeleccionado.gold || 0}</div>
                   </div>
                   
                   <div style={{display:'flex', gap:'30px'}}>
-                      {/* STATS: 80px */}
-                      <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
-                          <img src={STATS_CONFIG.vitalidad.icon} style={{width: '80px', height: '80px', objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(255,255,255,0.2))'}} title="Integridad"/>
+                      {/* INTEGRIDAD (Click) */}
+                      <div 
+                        onClick={() => setSelectedResource({ type: 'vitalidad', value: pacienteSeleccionado.stats?.vitalidad || 0 })}
+                        style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', cursor: 'pointer', transition: 'transform 0.1s'}}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}
+                      >
+                          <img src={STATS_CONFIG.vitalidad.icon} style={{width: '80px', height: '80px', objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(255,255,255,0.2))'}}/>
                           <div style={{fontSize:'1.2rem', color:'white', fontWeight:'bold', marginTop:'10px'}}>{pacienteSeleccionado.stats?.vitalidad || 0}</div>
                       </div>
-                      <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
-                          <img src={STATS_CONFIG.sabiduria.icon} style={{width: '80px', height: '80px', objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(255,255,255,0.2))'}} title="I+D"/>
+                      
+                      {/* I+D (Click) */}
+                      <div 
+                        onClick={() => setSelectedResource({ type: 'sabiduria', value: pacienteSeleccionado.stats?.sabiduria || 0 })}
+                        style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', cursor: 'pointer', transition: 'transform 0.1s'}}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}
+                      >
+                          <img src={STATS_CONFIG.sabiduria.icon} style={{width: '80px', height: '80px', objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(255,255,255,0.2))'}}/>
                           <div style={{fontSize:'1.2rem', color:'white', fontWeight:'bold', marginTop:'10px'}}>{pacienteSeleccionado.stats?.sabiduria || 0}</div>
                       </div>
-                      <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
-                          <img src={STATS_CONFIG.carisma.icon} style={{width: '80px', height: '80px', objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(255,255,255,0.2))'}} title="Red"/>
+                      
+                      {/* RED (Click) */}
+                      <div 
+                        onClick={() => setSelectedResource({ type: 'carisma', value: pacienteSeleccionado.stats?.carisma || 0 })}
+                        style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', cursor: 'pointer', transition: 'transform 0.1s'}}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}
+                      >
+                          <img src={STATS_CONFIG.carisma.icon} style={{width: '80px', height: '80px', objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(255,255,255,0.2))'}}/>
                           <div style={{fontSize:'1.2rem', color:'white', fontWeight:'bold', marginTop:'10px'}}>{pacienteSeleccionado.stats?.carisma || 0}</div>
                       </div>
                   </div>
@@ -144,7 +202,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
               {analizarBalance()}
 
-              {/* FORMULARIO CON ICONOS GRANDES (48px) */}
+              {/* FORMULARIO */}
               <div style={{background: 'var(--bg-card)', padding: '25px', borderRadius: '16px', marginBottom: '20px', border: editingId ? '1px solid var(--primary)' : 'var(--glass-border)', boxShadow: '0 4px 30px rgba(0,0,0,0.3)'}}>
                 <h4 style={{color: 'white', marginTop:0}}>{editingId ? "✏️ EDITAR PROTOCOLO" : "NUEVO PROTOCOLO"}</h4>
                 <div style={{marginBottom: '15px'}}><input type="text" value={tituloHabito} onChange={(e) => setTituloHabito(e.target.value)} placeholder="Descripción del protocolo..." style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white'}} /></div>
