@@ -3,8 +3,8 @@ import { doc, updateDoc, collection, query, onSnapshot } from 'firebase/firestor
 import { db } from '../services/firebaseConfig';
 import { XP_POR_HABITO, TABLA_NIVELES, obtenerNivel, obtenerMetaSiguiente, PERSONAJES, PersonajeTipo, obtenerEtapaActual, STATS_CONFIG } from '../game/GameAssets';
 
-// --- COMPONENTE DE STAT GRANDE ---
-const StatBadge = ({ type, value, isGold = false }: { type: 'vitalidad' | 'sabiduria' | 'carisma' | 'gold', value: number, isGold?: boolean }) => {
+// --- COMPONENTE DE STAT (VERSIÓN GIGANTE PARA PACIENTE) ---
+const StatBadge = ({ type, value }: { type: 'vitalidad' | 'sabiduria' | 'carisma', value: number }) => {
     const [showTooltip, setShowTooltip] = useState(false);
     const config = STATS_CONFIG[type];
 
@@ -16,23 +16,26 @@ const StatBadge = ({ type, value, isGold = false }: { type: 'vitalidad' | 'sabid
             onClick={() => setShowTooltip(!showTooltip)}
         >
             <div style={{
-                background: isGold ? 'rgba(245, 158, 11, 0.1)' : 'rgba(255,255,255,0.05)', 
-                border: isGold ? '1px solid #F59E0B' : '1px solid rgba(255,255,255,0.2)', 
-                borderRadius: '16px', padding: '15px 10px', textAlign: 'center', 
-                transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px'
+                background: 'rgba(255,255,255,0.05)', 
+                border: '1px solid rgba(255,255,255,0.1)', 
+                borderRadius: '16px', padding: '15px 5px', textAlign: 'center', 
+                transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                height: '100%', justifyContent: 'center'
             }}>
-                {/* ICONO MÁS GRANDE (50px) */}
-                <img src={config.icon} alt={config.label} style={{width: '50px', height: '50px', objectFit:'contain', filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))'}} />
+                {/* ICONO GIGANTE (70px) */}
+                <img src={config.icon} alt={config.label} style={{width: '70px', height: '70px', objectFit:'contain', filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.3))'}} />
                 
-                <div style={{fontWeight: 'bold', color: isGold ? '#F59E0B' : 'white', fontSize: '1.4rem', lineHeight: 1}}>{value}</div>
-                <div style={{fontSize: '0.65rem', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop:'2px'}}>{isGold ? 'FONDOS' : config.label.split(' ')[0]}</div>
+                <div>
+                    <div style={{fontWeight: 'bold', color: 'white', fontSize: '1.5rem', lineHeight: 1}}>{value}</div>
+                    <div style={{fontSize: '0.65rem', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop:'4px', color:'var(--text-muted)'}}>{config.label.split(' ')[0]}</div>
+                </div>
             </div>
 
             {showTooltip && (
                 <div style={{
                     position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
                     background: 'rgba(15, 23, 42, 0.98)', border: '1px solid var(--primary)',
-                    color: 'white', padding: '15px', borderRadius: '12px', width: '220px', zIndex: 100,
+                    color: 'white', padding: '15px', borderRadius: '12px', width: '200px', zIndex: 100,
                     fontSize: '0.8rem', boxShadow: '0 4px 30px rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)',
                     textAlign: 'left'
                 }}>
@@ -44,6 +47,7 @@ const StatBadge = ({ type, value, isGold = false }: { type: 'vitalidad' | 'sabid
     );
 };
 
+// --- UTILIDADES ---
 const getWeekId = (date: Date) => {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -61,7 +65,7 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   const [nivel, setNivel] = useState(1);
   const [xpSiguiente, setXpSiguiente] = useState(100);
   const [semanaOffset, setSemanaOffset] = useState(0);
-  const [viewAvatar, setViewAvatar] = useState(false); // Nuevo estado para el Modal
+  const [viewAvatar, setViewAvatar] = useState(false);
   const currentWeekId = getWeekId(new Date());
 
   const avatarKey = userData.avatarKey as PersonajeTipo;
@@ -73,11 +77,24 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     const q = query(collection(db, "users", psicologoId, "pacientes", userUid, "habitos"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      lista.forEach(async (h: any) => {
+        if (h.ultimaSemanaRegistrada !== currentWeekId) {
+            const registroAArchivar = h.registro || { L: false, M: false, X: false, J: false, V: false, S: false, D: false };
+            const historialNuevo = { ...h.historial, [h.ultimaSemanaRegistrada || "antiguo"]: registroAArchivar };
+            await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid, "habitos", h.id), {
+                registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false },
+                historial: historialNuevo,
+                ultimaSemanaRegistrada: currentWeekId
+            });
+        }
+      });
+
       setMisHabitos(lista);
       calcularGamificacion(lista);
     });
     return () => unsubscribe();
-  }, [userUid, psicologoId]);
+  }, [userUid, psicologoId, currentWeekId]);
 
   const calcularGamificacion = async (habitos: any[]) => {
     let totalChecks = 0;
@@ -180,16 +197,24 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
                 </div>
 
                 <div>
-                    <h2 style={{margin: 0, fontSize: '1.4rem', fontFamily: 'Rajdhani, sans-serif', color:'var(--primary)', textTransform:'uppercase'}}>{etapaVisual.nombreClase}</h2>
+                    <h2 style={{margin: 0, fontSize: '1.4rem', fontFamily: 'Rajdhani, sans-serif', color:'var(--primary)', textTransform:'uppercase'}}>
+                        {etapaVisual.nombreClase}
+                    </h2>
                     <p style={{margin: 0, fontSize:'0.8rem', color:'var(--text-muted)'}}>Nivel {nivel} | {puntosTotales} XP</p>
                 </div>
             </div>
             
             {/* ORO GRANDE */}
-            <StatBadge type="gold" value={gold} isGold />
+            <div style={{textAlign:'right', minWidth:'80px'}}>
+                <div style={{fontSize: '1.5rem', color:'#F59E0B', fontWeight:'bold', textShadow:'0 0 10px rgba(245, 158, 11, 0.5)', display:'flex', alignItems:'center', justifyContent:'flex-end', gap:'5px'}}>
+                    <img src={STATS_CONFIG.gold.icon} style={{width:'30px'}} />
+                    {gold}
+                </div>
+                <div style={{fontSize:'0.6rem', color:'var(--text-muted)', letterSpacing:'1px', marginTop:'2px'}}>FONDOS</div>
+            </div>
         </div>
 
-        {/* STATS GRID (GRANDES) */}
+        {/* STATS GRID (COMPONENTES GIGANTES) */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'20px'}}>
             <StatBadge type="vitalidad" value={stats.vitalidad} />
             <StatBadge type="sabiduria" value={stats.sabiduria} />
@@ -200,6 +225,9 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
         <div style={{width: '100%', background: 'rgba(255,255,255,0.1)', height: '8px', borderRadius: '10px', overflow: 'hidden'}}>
             <div style={{width: `${porcentajeNivel}%`, background: 'var(--secondary)', height: '100%', borderRadius: '10px', transition: 'width 1s ease', boxShadow:'0 0 10px var(--secondary)'}}></div>
         </div>
+        <div style={{textAlign:'right', fontSize:'0.7rem', marginTop:'5px', color:'var(--secondary)'}}>
+            Próx. Nivel: {porcentajeNivel}%
+        </div>
       </div>
 
       {/* CONTROL TIEMPO */}
@@ -207,8 +235,9 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
         <button onClick={() => setSemanaOffset(semanaOffset - 1)} style={{background:'rgba(255,255,255,0.1)', border:'none', width:'40px', height:'40px', borderRadius:'50%', cursor:'pointer', color:'white', fontSize:'1.2rem'}}>⬅</button>
         <div style={{textAlign:'center'}}>
             <span style={{fontWeight:'bold', color:'var(--primary)', fontSize:'1rem', textTransform:'uppercase', letterSpacing:'1px'}}>{getWeekLabel(semanaOffset)}</span>
+            <br/><small style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>{semanaOffset === 0 ? "● EN TIEMPO REAL" : "○ MODO HISTORIAL"}</small>
         </div>
-        <button onClick={() => semanaOffset < 0 && setSemanaOffset(semanaOffset + 1)} style={{background: 'rgba(255,255,255,0.1)', border: 'none', width:'40px', height:'40px', borderRadius:'50%', cursor: 'pointer', color: 'white', fontSize:'1.2rem'}}>➡</button>
+        <button onClick={() => semanaOffset < 0 && setSemanaOffset(semanaOffset + 1)} style={{background: semanaOffset === 0 ? 'transparent' : 'rgba(255,255,255,0.1)', border: semanaOffset === 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', width:'40px', height:'40px', borderRadius:'50%', cursor: semanaOffset === 0 ? 'default' : 'pointer', color: semanaOffset === 0 ? 'gray' : 'white', fontSize:'1.2rem'}}>➡</button>
       </div>
 
       {/* LISTA DE HÁBITOS */}
@@ -224,18 +253,21 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
           
           return (
             <div key={habito.id} style={{background: 'var(--bg-card)', padding: '25px', borderRadius: '20px', border: logrado ? '1px solid var(--secondary)' : '1px solid rgba(255,255,255,0.05)', position: 'relative', overflow: 'hidden', opacity: esHistorial ? 0.7 : 1, boxShadow: logrado ? '0 0 20px rgba(16, 185, 129, 0.1)' : 'none'}}>
+              {logrado && <div style={{position: 'absolute', top: 0, right: 0, background: 'var(--secondary)', color: 'black', padding: '5px 15px', borderBottomLeftRadius: '15px', fontSize: '0.7rem', fontWeight: 'bold'}}>¡META CUMPLIDA!</div>}
+
               <div style={{marginBottom: '20px'}}>
                 <h4 style={{margin: '0 0 5px 0', fontSize: '1.3rem', color: 'white', letterSpacing:'0.5px'}}>{habito.titulo}</h4>
                 <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
                     <span style={{background: 'rgba(255,255,255,0.1)', color: 'white', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold'}}>{meta} días/sem</span>
                     <div style={{display:'flex', gap:'5px', marginLeft:'auto'}}>
-                        <img src="/recursos.png" style={{width:'20px'}} title="+5 Fondos" />
-                        {habito.recompensas?.includes('vitalidad') && <img src={STATS_CONFIG.vitalidad.icon} style={{width:'20px'}} />}
-                        {habito.recompensas?.includes('sabiduria') && <img src={STATS_CONFIG.sabiduria.icon} style={{width:'20px'}} />}
-                        {habito.recompensas?.includes('carisma') && <img src={STATS_CONFIG.carisma.icon} style={{width:'20px'}} />}
+                        <img src={STATS_CONFIG.gold.icon} style={{width:'25px'}} title="+5 Fondos" />
+                        {habito.recompensas?.includes('vitalidad') && <img src={STATS_CONFIG.vitalidad.icon} style={{width:'25px'}} />}
+                        {habito.recompensas?.includes('sabiduria') && <img src={STATS_CONFIG.sabiduria.icon} style={{width:'25px'}} />}
+                        {habito.recompensas?.includes('carisma') && <img src={STATS_CONFIG.carisma.icon} style={{width:'25px'}} />}
                     </div>
                 </div>
               </div>
+
               <div style={{display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '12px'}}>
                 {diasSemana.map(dia => (
                   <div key={dia} style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'}}>
@@ -244,6 +276,7 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
                   </div>
                 ))}
               </div>
+              
               <div style={{marginTop: '15px', display: 'flex', alignItems: 'center', gap: '10px'}}>
                 <div style={{flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px'}}><div style={{width: `${porcentaje}%`, background: 'var(--primary)', height: '100%', borderRadius: '2px', transition: 'width 0.5s', boxShadow: '0 0 5px var(--primary)'}}></div></div>
                 <span style={{fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 'bold'}}>{diasLogrados}/{meta}</span>

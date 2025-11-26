@@ -3,7 +3,7 @@ import { doc, updateDoc, addDoc, deleteDoc, collection, query, where, onSnapshot
 import { db } from '../services/firebaseConfig';
 import { STATS_CONFIG } from '../game/GameAssets';
 
-// Iconos SVG para acciones (Editar, Borrar, etc.)
+// Iconos SVG para acciones
 const IconEdit = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
 const IconMedal = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>;
 const IconRestore = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>;
@@ -111,7 +111,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
           {pacienteSeleccionado ? (
             <div style={{animation: 'fadeIn 0.5s'}}>
               
-              {/* FICHA DE RECURSOS (ICONOS GIGANTES) */}
+              {/* FICHA DE RECURSOS (ICONOS 80px - 100px) */}
               <div style={{background: 'linear-gradient(90deg, rgba(15,23,42,0.8) 0%, rgba(30,41,59,0.8) 100%)', padding: '30px', borderRadius: '16px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-around', alignItems: 'center'}}>
                   
                   <div style={{textAlign:'center'}}>
@@ -120,23 +120,21 @@ export function PanelPsicologo({ userData, userUid }: any) {
                   </div>
                   
                   <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
-                      {/* FONDOS OPERATIVOS 4X */}
+                      {/* FONDOS: 100px */}
                       <img src={STATS_CONFIG.gold.icon} style={{width: '100px', height: '100px', objectFit:'contain', filter:'drop-shadow(0 0 15px rgba(245, 158, 11, 0.5))'}}/>
                       <div style={{fontSize:'1.5rem', color:'#F59E0B', fontWeight:'bold', marginTop:'10px'}}>{pacienteSeleccionado.gold || 0}</div>
                   </div>
                   
                   <div style={{display:'flex', gap:'30px'}}>
-                      {/* INTEGRIDAD 4X */}
+                      {/* STATS: 80px */}
                       <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
                           <img src={STATS_CONFIG.vitalidad.icon} style={{width: '80px', height: '80px', objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(255,255,255,0.2))'}} title="Integridad"/>
                           <div style={{fontSize:'1.2rem', color:'white', fontWeight:'bold', marginTop:'10px'}}>{pacienteSeleccionado.stats?.vitalidad || 0}</div>
                       </div>
-                      {/* I+D 4X */}
                       <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
                           <img src={STATS_CONFIG.sabiduria.icon} style={{width: '80px', height: '80px', objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(255,255,255,0.2))'}} title="I+D"/>
                           <div style={{fontSize:'1.2rem', color:'white', fontWeight:'bold', marginTop:'10px'}}>{pacienteSeleccionado.stats?.sabiduria || 0}</div>
                       </div>
-                      {/* RED 4X */}
                       <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
                           <img src={STATS_CONFIG.carisma.icon} style={{width: '80px', height: '80px', objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(255,255,255,0.2))'}} title="Red"/>
                           <div style={{fontSize:'1.2rem', color:'white', fontWeight:'bold', marginTop:'10px'}}>{pacienteSeleccionado.stats?.carisma || 0}</div>
@@ -146,13 +144,13 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
               {analizarBalance()}
 
-              {/* FORMULARIO CON ICONOS GRANDES */}
+              {/* FORMULARIO CON ICONOS GRANDES (48px) */}
               <div style={{background: 'var(--bg-card)', padding: '25px', borderRadius: '16px', marginBottom: '20px', border: editingId ? '1px solid var(--primary)' : 'var(--glass-border)', boxShadow: '0 4px 30px rgba(0,0,0,0.3)'}}>
                 <h4 style={{color: 'white', marginTop:0}}>{editingId ? "✏️ EDITAR PROTOCOLO" : "NUEVO PROTOCOLO"}</h4>
                 <div style={{marginBottom: '15px'}}><input type="text" value={tituloHabito} onChange={(e) => setTituloHabito(e.target.value)} placeholder="Descripción del protocolo..." style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white'}} /></div>
                 
                 <div style={{display:'flex', gap:'15px', marginBottom:'20px'}}>
-                    {/* BOTONES DE SELECCIÓN DE RECOMPENSA (ICONOS 50px) */}
+                    {/* BOTONES DE SELECCIÓN */}
                     <button onClick={() => toggleRecompensa('vitalidad')} style={{
                         background: recompensas.includes('vitalidad') ? 'rgba(239,68,68,0.2)' : 'transparent', 
                         color: 'white', 
@@ -160,7 +158,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                         borderRadius:'12px', padding:'10px 15px', 
                         display:'flex', flexDirection:'column', alignItems:'center', gap:'5px', cursor:'pointer', flex:1
                     }}>
-                        <img src={STATS_CONFIG.vitalidad.icon} style={{width:'50px', height:'50px', objectFit:'contain'}}/>
+                        <img src={STATS_CONFIG.vitalidad.icon} style={{width:'48px', height:'48px', objectFit:'contain'}}/>
                         <span style={{fontSize:'0.8rem'}}>Integridad</span>
                     </button>
                     
@@ -171,7 +169,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                         borderRadius:'12px', padding:'10px 15px', 
                         display:'flex', flexDirection:'column', alignItems:'center', gap:'5px', cursor:'pointer', flex:1
                     }}>
-                        <img src={STATS_CONFIG.sabiduria.icon} style={{width:'50px', height:'50px', objectFit:'contain'}}/>
+                        <img src={STATS_CONFIG.sabiduria.icon} style={{width:'48px', height:'48px', objectFit:'contain'}}/>
                         <span style={{fontSize:'0.8rem'}}>I+D</span>
                     </button>
                     
@@ -182,7 +180,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                         borderRadius:'12px', padding:'10px 15px', 
                         display:'flex', flexDirection:'column', alignItems:'center', gap:'5px', cursor:'pointer', flex:1
                     }}>
-                        <img src={STATS_CONFIG.carisma.icon} style={{width:'50px', height:'50px', objectFit:'contain'}}/>
+                        <img src={STATS_CONFIG.carisma.icon} style={{width:'48px', height:'48px', objectFit:'contain'}}/>
                         <span style={{fontSize:'0.8rem'}}>Red</span>
                     </button>
                 </div>
@@ -194,7 +192,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                 </div>
               </div>
               
-              {/* LISTA */}
+              {/* LISTA CON ICONOS DE 32px */}
               <div style={{display: 'grid', gap: '10px'}}>
                 {habitosPaciente.map(h => {
                    const diasLogrados = contarDias(h.registro);
@@ -209,9 +207,9 @@ export function PanelPsicologo({ userData, userUid }: any) {
                         <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}>
                             <strong style={{color:'white', fontSize:'1.1rem', textDecoration: esArchivado ? 'line-through' : 'none'}}>{h.titulo}</strong>
                             <div style={{display:'flex', gap:'5px'}}>
-                                {h.recompensas?.includes('vitalidad') && <img src={STATS_CONFIG.vitalidad.icon} style={{width:'35px', height:'35px', objectFit:'contain'}} title="Integridad"/>}
-                                {h.recompensas?.includes('sabiduria') && <img src={STATS_CONFIG.sabiduria.icon} style={{width:'35px', height:'35px', objectFit:'contain'}} title="I+D"/>}
-                                {h.recompensas?.includes('carisma') && <img src={STATS_CONFIG.carisma.icon} style={{width:'35px', height:'35px', objectFit:'contain'}} title="Red"/>}
+                                {h.recompensas?.includes('vitalidad') && <img src={STATS_CONFIG.vitalidad.icon} style={{width:'32px', height:'32px', objectFit:'contain'}} title="Integridad"/>}
+                                {h.recompensas?.includes('sabiduria') && <img src={STATS_CONFIG.sabiduria.icon} style={{width:'32px', height:'32px', objectFit:'contain'}} title="I+D"/>}
+                                {h.recompensas?.includes('carisma') && <img src={STATS_CONFIG.carisma.icon} style={{width:'32px', height:'32px', objectFit:'contain'}} title="Red"/>}
                             </div>
                         </div>
                         <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.8rem', color:'var(--text-muted)', marginBottom:'3px'}}><span>{diasLogrados}/{meta} Ejecuciones</span><span>{esArchivado ? "FINALIZADO" : "ACTIVO"}</span></div>
