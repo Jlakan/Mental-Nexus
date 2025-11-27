@@ -1,81 +1,46 @@
 // src/game/GameAssets.ts
 
 // ==========================================
-// 1. CONFIGURACIÓN MATEMÁTICA (NIVELES)
+// 1. CONFIGURACIÓN MATEMÁTICA
 // ==========================================
-
-// Cuánta XP da completar 1 hábito
 export const XP_POR_HABITO = 10;
 
-// Tabla de XP acumulada necesaria para llegar al Nivel X
-// Index 0 = Nivel 1, Index 1 = Nivel 2, etc.
 export const TABLA_NIVELES = [
-  0,      // Nivel 1 (Inicio)
-  100,    // Nivel 2
-  250,    // Nivel 3
-  450,    // Nivel 4
-  700,    // Nivel 5
-  1000,   // Nivel 6
-  1350,   // Nivel 7
-  1750,   // Nivel 8
-  2200,   // Nivel 9
-  2700,   // Nivel 10
-  3300,   // Nivel 11
-  4000,   // Nivel 12
-  4800,   // Nivel 13
-  5700,   // Nivel 14
-  6700,   // Nivel 15
-  7800,   // Nivel 16
-  9000,   // Nivel 17
-  10300,  // Nivel 18
-  11700,  // Nivel 19
-  13200,  // Nivel 20
-  14800,  // Nivel 21
-  16500,  // Nivel 22
-  18300,  // Nivel 23
-  20200,  // Nivel 24
-  22200   // Nivel 25
+  0, 100, 250, 450, 700, 1000, 1350, 1750, 2200, 2700, 
+  3300, 4000, 4800, 5700, 6700, 7800, 9000, 10300, 11700, 13200, 
+  14800, 16500, 18300, 20200, 22200
 ];
 
-// Función: Calcula nivel actual basado en XP total
 export const obtenerNivel = (xp: number) => {
   for (let i = TABLA_NIVELES.length - 1; i >= 0; i--) {
-    if (xp >= TABLA_NIVELES[i]) {
-      return i + 1; 
-    }
+    if (xp >= TABLA_NIVELES[i]) return i + 1;
   }
   return 1;
 };
 
-// Función: Calcula meta del siguiente nivel
 export const obtenerMetaSiguiente = (nivelActual: number) => {
   if (nivelActual >= TABLA_NIVELES.length) {
-    // Niveles infinitos: +2500 XP por cada nivel extra después del 25
     return TABLA_NIVELES[TABLA_NIVELES.length - 1] + ((nivelActual - TABLA_NIVELES.length + 1) * 2500);
   }
   return TABLA_NIVELES[nivelActual];
 };
 
 // ==========================================
-// 2. TIPOS DE DATOS (INTERFACES)
+// 2. TIPOS DE DATOS
 // ==========================================
 
 export type PersonajeTipo = 'atlas' | 'explorador_demo'; 
-// Mantenemos las keys internas en inglés/simple para no romper la BD, 
-// pero las mostramos con nombres Cyberpunk en la UI.
-export type StatTipo = 'vitalidad' | 'sabiduria' | 'carisma' | 'gold';
+// Agregamos 'nexo' a los tipos de stats
+export type StatTipo = 'vitalidad' | 'sabiduria' | 'carisma' | 'gold' | 'nexo';
 
 export interface GameItem {
   id: string;
   nombre: string;
-  precio: number;      // Costo en Fondos
-  emoji: string;       // Icono visual (o url de imagen)
+  precio: number;
+  emoji: string;
   tipo: 'arma' | 'ropa' | 'accesorio' | 'mascota';
   descripcion: string;
-  reqStat?: {          // Requisito para comprar (Desbloqueo)
-      tipo: StatTipo; 
-      valor: number 
-  }; 
+  reqStat?: { type: StatTipo; valor: number }; 
 }
 
 export interface EtapaEvolucion {
@@ -83,7 +48,7 @@ export interface EtapaEvolucion {
     nombreClase: string;
     lema: string;
     descripcionVisual: string;
-    imagen: string; // Ruta al archivo video/imagen en /public
+    imagen: string; 
 }
 
 export interface AvatarDef {
@@ -96,7 +61,6 @@ export interface AvatarDef {
   tiendaExclusiva: GameItem[];
 }
 
-// Helper para obtener la etapa visual según el nivel
 export const obtenerEtapaActual = (personaje: AvatarDef, nivelPaciente: number) => {
     const etapasDesbloqueadas = personaje.etapas.filter(e => nivelPaciente >= e.nivelMinimo);
     return etapasDesbloqueadas[etapasDesbloqueadas.length - 1] || personaje.etapas[0];
@@ -108,23 +72,28 @@ export const obtenerEtapaActual = (personaje: AvatarDef, nivelPaciente: number) 
 export const STATS_CONFIG = {
   vitalidad: {
     label: "Integridad del Sistema",
-    icon: "/vitalidad.png",
+    icon: "/vitalidad.png", // Corazón biomecánico
     desc: "Un corazón biomecánico. Atlas no tiene sentimientos, tiene un 'motor biológico' que requiere mantenimiento."
   },
   sabiduria: {
     label: "Capital de I+D",
-    icon: "/desarrollo.png",
+    icon: "/desarrollo.png", // Cerebro circuitos
     desc: "Un cerebro de circuitos. Atlas invierte en Investigación y Desarrollo de nuevas capacidades intelectuales."
   },
   carisma: {
     label: "Apalancamiento de Red",
-    icon: "/socializacion.png",
+    icon: "/socializacion.png", // Nodos red
     desc: "Nodos conectados. Atlas gestiona una red de contactos estratégicos y activos humanos externos."
   },
   gold: {
     label: "Fondos Operativos",
-    icon: "/recursos.png",
+    icon: "/recursos.png", // Moneda hexagonal
     desc: "Liquidez necesaria para adquirir activos y mejoras en el mercado negro."
+  },
+  nexo: {
+    label: "Nexo de Sincronización",
+    icon: "/nexo.png", // Cristal/Átomo
+    desc: "Unidad de vínculo terapéutico de alto valor. Se obtiene mediante la asistencia a sesiones y el cumplimiento de hitos semanales."
   }
 };
 
@@ -138,7 +107,6 @@ export const PERSONAJES: Record<PersonajeTipo, AvatarDef> = {
     nombre: 'Atlas Vance',
     lemaPrincipal: 'El Auditor del Caos',
     descripcion: '¿Por qué ensuciarse las manos cuando puedes reprogramar la realidad? Atlas realiza una auditoría hostil a las fuerzas del mal.',
-    // Atlas es cerebro y dinero (Sabiduría + Carisma)
     statsBase: { vitalidad: 1, sabiduria: 3, carisma: 3 },
     
     etapas: [
@@ -147,7 +115,7 @@ export const PERSONAJES: Record<PersonajeTipo, AvatarDef> = {
             nombreClase: "Consultor Táctico",
             lema: "Mis tarifas son altas, pero el costo del fracaso es mayor.",
             descripcionVisual: "Traje sastre oscuro impecable. Maletín Aegis en mano.",
-            imagen: "/atlas_1.mp4" // Video
+            imagen: "/atlas_1.mp4"
         },
         {
             nivelMinimo: 5,
@@ -173,25 +141,24 @@ export const PERSONAJES: Record<PersonajeTipo, AvatarDef> = {
     ],
 
     tiendaExclusiva: [
-      // TIER 1: Consultor
+      // TIER 1
       { id: 'stylus_basico', nombre: 'Stylus de Mando', precio: 50, emoji: '🖊️', tipo: 'arma', descripcion: 'Para dar órdenes básicas al sistema.' },
-      { id: 'traje_sastre', nombre: 'Traje Sastre Oscuro', precio: 100, emoji: '👔', tipo: 'ropa', descripcion: 'Impecable, aunque seas un novato.', reqStat: { tipo: 'carisma', valor: 5 } },
+      { id: 'traje_sastre', nombre: 'Traje Sastre Oscuro', precio: 100, emoji: '👔', tipo: 'ropa', descripcion: 'Impecable.', reqStat: { tipo: 'carisma', valor: 5 } },
       
-      // TIER 2: Director
+      // TIER 2
       { id: 'lentes_hud', nombre: 'Lentes HUD', precio: 300, emoji: '👓', tipo: 'accesorio', descripcion: 'Visualización de datos en tiempo real.', reqStat: { tipo: 'sabiduria', valor: 10 } },
-      { id: 'maletin_autonomo', nombre: 'Upgrade: Maletín Flotante', precio: 800, emoji: '🧳', tipo: 'arma', descripcion: 'Ya no necesitas cargarlo. Flota a tu lado.', reqStat: { tipo: 'sabiduria', valor: 15 } },
+      { id: 'maletin_autonomo', nombre: 'Upgrade: Maletín Flotante', precio: 800, emoji: '🧳', tipo: 'arma', descripcion: 'Ya no necesitas cargarlo.', reqStat: { tipo: 'sabiduria', valor: 15 } },
       
-      // TIER 3: CEO
-      { id: 'traje_blanco', nombre: 'Traje "Artemis" Blanco', precio: 2000, emoji: '🧥', tipo: 'ropa', descripcion: 'La máxima señal de arrogancia y poder.', reqStat: { tipo: 'carisma', valor: 20 } },
-      { id: 'androide_butler', nombre: 'Androide Guardaespaldas', precio: 5000, emoji: '🦾', tipo: 'mascota', descripcion: 'Hace el trabajo sucio por ti de forma elegante.', reqStat: { tipo: 'carisma', valor: 25 } },
+      // TIER 3
+      { id: 'traje_blanco', nombre: 'Traje "Artemis" Blanco', precio: 2000, emoji: '🧥', tipo: 'ropa', descripcion: 'La máxima señal de arrogancia.', reqStat: { tipo: 'carisma', valor: 20 } },
+      { id: 'androide_butler', nombre: 'Androide Guardaespaldas', precio: 5000, emoji: '🦾', tipo: 'mascota', descripcion: 'Hace el trabajo sucio por ti.', reqStat: { tipo: 'carisma', valor: 25 } },
 
-      // TIER 4: Arquitecto
+      // TIER 4
       { id: 'botas_grav', nombre: 'Zapatos Antigravitacionales', precio: 10000, emoji: '🛸', tipo: 'ropa', descripcion: 'El suelo es para la gente común.', reqStat: { tipo: 'sabiduria', valor: 30 } },
-      { id: 'enjambre_drones', nombre: 'Enjambre Orbital', precio: 50000, emoji: '✨', tipo: 'arma', descripcion: 'Control total del campo de batalla con la mente.', reqStat: { tipo: 'sabiduria', valor: 50 } }
+      { id: 'enjambre_drones', nombre: 'Enjambre Orbital', precio: 50000, emoji: '✨', tipo: 'arma', descripcion: 'Control total.', reqStat: { tipo: 'sabiduria', valor: 50 } }
     ]
   },
 
-  // Placeholder
   explorador_demo: {
     id: 'explorador_demo',
     nombre: 'Explorador (Demo)',

@@ -2,18 +2,17 @@ import { useState, useEffect } from 'react';
 import { doc, updateDoc, collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { XP_POR_HABITO, TABLA_NIVELES, obtenerNivel, obtenerMetaSiguiente, PERSONAJES, PersonajeTipo, obtenerEtapaActual, STATS_CONFIG, StatTipo } from '../game/GameAssets';
+import { WeeklyChest } from '../components/WeeklyChest'; // Importamos el cofre
 
-// --- COMPONENTE DE STAT (VERSIÓN GIGANTE PARA PACIENTE) ---
-const StatBadge = ({ type, value }: { type: 'vitalidad' | 'sabiduria' | 'carisma', value: number }) => {
+// --- COMPONENTE DE STAT (Badge) ---
+const StatBadge = ({ type, value }: { type: 'vitalidad' | 'sabiduria' | 'carisma' | 'nexo', value: number }) => {
     const [showTooltip, setShowTooltip] = useState(false);
     const config = STATS_CONFIG[type];
 
     return (
         <div 
             style={{position: 'relative', cursor: 'pointer', flex: 1}}
-            // En móvil el click activa el modal principal en el padre, aquí solo manejamos hover para PC
-            onMouseEnter={() => setShowTooltip(true)}
-            onMouseLeave={() => setShowTooltip(false)}
+            onClick={() => setShowTooltip(true)} // Click abre el modal en el padre (manejado abajo)
         >
             <div style={{
                 background: 'rgba(255,255,255,0.05)', 
@@ -22,7 +21,6 @@ const StatBadge = ({ type, value }: { type: 'vitalidad' | 'sabiduria' | 'carisma
                 transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
                 height: '100%', justifyContent: 'center'
             }}>
-                {/* ICONO GIGANTE (70px en el dashboard) */}
                 <img src={config.icon} alt={config.label} style={{width: '70px', height: '70px', objectFit:'contain', filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.3))'}} />
                 
                 <div>
@@ -30,20 +28,6 @@ const StatBadge = ({ type, value }: { type: 'vitalidad' | 'sabiduria' | 'carisma
                     <div style={{fontSize: '0.65rem', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop:'4px', color:'var(--text-muted)'}}>{config.label.split(' ')[0]}</div>
                 </div>
             </div>
-
-            {/* Tooltip solo para PC (Hover rápido) */}
-            {showTooltip && (
-                <div style={{
-                    position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
-                    background: 'rgba(15, 23, 42, 0.98)', border: '1px solid var(--primary)',
-                    color: 'white', padding: '15px', borderRadius: '12px', width: '200px', zIndex: 100,
-                    fontSize: '0.8rem', boxShadow: '0 4px 30px rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)',
-                    textAlign: 'left', pointerEvents: 'none'
-                }}>
-                    <strong style={{color: 'var(--primary)', display: 'block', marginBottom: '5px', fontSize:'0.9rem'}}>{config.label}</strong>
-                    <p style={{margin:0, lineHeight:'1.4', color:'var(--text-muted)'}}>{config.desc}</p>
-                </div>
-            )}
         </div>
     );
 };
@@ -60,9 +44,12 @@ const getWeekLabel = (offset: number) => offset === 0 ? "Semana Actual" : `Hace 
 
 export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   const [misHabitos, setMisHabitos] = useState<any[]>([]);
+  
+  // Estados del Juego
   const [puntosTotales, setPuntosTotales] = useState(0);
   const [gold, setGold] = useState(0);
-  const [stats, setStats] = useState({ vitalidad: 0, sabiduria: 0, carisma: 0 });
+  const [stats, setStats] = useState({ vitalidad: 0, sabiduria: 0, carisma: 0, nexo: 0 });
+  
   const [nivel, setNivel] = useState(1);
   const [xpSiguiente, setXpSiguiente] = useState(100);
   const [semanaOffset, setSemanaOffset] = useState(0);
@@ -80,6 +67,7 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
+      // Auto-archivado
       lista.forEach(async (h: any) => {
         if (h.ultimaSemanaRegistrada !== currentWeekId) {
             const registroAArchivar = h.registro || { L: false, M: false, X: false, J: false, V: false, S: false, D: false };
@@ -96,52 +84,88 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
       calcularGamificacion(lista);
     });
     return () => unsubscribe();
-  }, [userUid, psicologoId, currentWeekId]);
+  }, [userUid, psicologoId, currentWeekId, userData.bonusGold, userData.bonusStats]); // Agregamos dependencias de bonos
 
   const calcularGamificacion = async (habitos: any[]) => {
     let totalChecks = 0;
-    let newVitalidad = avatarDef.statsBase.vitalidad;
-    let newSabiduria = avatarDef.statsBase.sabiduria;
-    let newCarisma = avatarDef.statsBase.carisma;
-
-    const procesarSemana = (registro: any, recompensas: string[]) => {
-        const checks = Object.values(registro).filter(v => v === true).length;
-        totalChecks += checks;
-        if (recompensas?.includes('vitalidad')) newVitalidad += checks;
-        if (recompensas?.includes('sabiduria')) newSabiduria += checks;
-        if (recompensas?.includes('carisma')) newCarisma += checks;
-    };
+    
+    // Base Stats del personaje + Bonos acumulados (de cofres)
+    let newVitalidad = avatarDef.statsBase.vitalidad + (userData.stats?.vitalidad || 0);
+    let newSabiduria = avatarDef.statsBase.sabiduria + (userData.stats?.sabiduria || 0);
+    let newCarisma = avatarDef.statsBase.carisma + (userData.stats?.carisma || 0);
+    
+    // Nota: Para evitar sumar doble los stats base cada vez, idealmente los bonos de cofres deberían estar en 'bonusStats'
+    // Pero por ahora asumimos que userData.stats trae el acumulado total guardado.
+    // Para simplificar la visualización dinámica, recalculamos SOLO lo de los hábitos y lo sumamos a lo guardado.
+    
+    // En realidad, para que funcione fluido con los cofres, vamos a confiar en que userData trae el "Banco"
+    // y aquí solo sumamos la "Producción Actual".
+    
+    // Reiniciamos contadores de producción actual
+    let habitVitalidad = 0;
+    let habitSabiduria = 0;
+    let habitCarisma = 0;
 
     habitos.forEach(h => {
-        procesarSemana(h.registro, h.recompensas);
+        const checks = Object.values(h.registro).filter(v => v === true).length;
+        totalChecks += checks;
+        // Sumar historial también
+        let checksHistorial = 0;
         if (h.historial) {
-            Object.values(h.historial).forEach((semana: any) => procesarSemana(semana, h.recompensas));
+             Object.values(h.historial).forEach((sem: any) => {
+                 checksHistorial += Object.values(sem).filter(v => v === true).length;
+             });
         }
+        const totalH = checks + checksHistorial;
+
+        if (h.recompensas?.includes('vitalidad')) habitVitalidad += totalH;
+        if (h.recompensas?.includes('sabiduria')) habitSabiduria += totalH;
+        if (h.recompensas?.includes('carisma')) habitCarisma += totalH;
     });
     
-    const xp = totalChecks * XP_POR_HABITO;
-    const oroCalculado = totalChecks * 5;
+    // Total = Base Personaje + Ganado en Hábitos + Ganado en Cofres (guardado en userData.bonusStats si existiera)
+    // Simplificación: Total = Base + Hábitos. (Los cofres los manejaremos como un extra directo en el futuro).
+    // Por ahora mostramos lo ganado por esfuerzo.
+    
+    const xp = (totalChecks + (userData.bonusXP || 0)) * XP_POR_HABITO;
+    
+    // Oro = (Hábitos * 5) + (Lo que haya en la 'billetera' del usuario, ej: bonos)
+    const oroTotal = (totalChecks * 5) + (userData.bonusGold || 0); 
+
     const nuevoNivel = obtenerNivel(xp);
     const meta = obtenerMetaSiguiente(nuevoNivel);
 
     setPuntosTotales(xp);
-    setGold(oroCalculado);
-    setStats({ vitalidad: newVitalidad, sabiduria: newSabiduria, carisma: newCarisma });
+    setGold(oroTotal);
+    setStats({ 
+        vitalidad: avatarDef.statsBase.vitalidad + habitVitalidad, 
+        sabiduria: avatarDef.statsBase.sabiduria + habitSabiduria, 
+        carisma: avatarDef.statsBase.carisma + habitCarisma,
+        nexo: userData.nexo || 0
+    });
     setNivel(nuevoNivel);
     setXpSiguiente(meta);
 
-    if (userData.xp !== xp) {
+    // Sincronizar con BD solo si hay cambios relevantes de nivel/xp
+    if (userData.xp !== xp || userData.gold !== oroTotal) {
         try {
             await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid), {
-                nivel: nuevoNivel, gold: oroCalculado, xp: xp,
-                stats: { vitalidad: newVitalidad, sabiduria: newSabiduria, carisma: newCarisma }
+                nivel: nuevoNivel, 
+                gold: oroTotal, 
+                xp: xp,
+                // Guardamos el total calculado
+                stats: { 
+                    vitalidad: avatarDef.statsBase.vitalidad + habitVitalidad, 
+                    sabiduria: avatarDef.statsBase.sabiduria + habitSabiduria, 
+                    carisma: avatarDef.statsBase.carisma + habitCarisma 
+                }
             });
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Sync error", e); }
     }
   };
 
   const toggleDia = async (habitoId: string, dia: string, estadoActual: boolean) => {
-    if (semanaOffset !== 0) return alert("No puedes modificar el pasado ⏳");
+    if (semanaOffset !== 0) return alert("Solo lectura");
     try {
       const habitoRef = doc(db, "users", psicologoId, "pacientes", userUid, "habitos", habitoId);
       await updateDoc(habitoRef, { [`registro.${dia}`]: !estadoActual });
@@ -193,21 +217,14 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
                   display: 'flex', flexDirection: 'column', alignItems: 'center'
               }} onClick={e => e.stopPropagation()}>
                   
-                  <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : 'white', fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2.5rem', marginBottom:'30px', textShadow: '0 0 20px rgba(0,0,0,0.5)'}}>
+                  <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : (selectedResource.type === 'nexo' ? '#8B5CF6' : 'white'), fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2.5rem', marginBottom:'30px', textShadow: '0 0 20px rgba(0,0,0,0.5)'}}>
                       {STATS_CONFIG[selectedResource.type].label}
                   </h2>
                   
-                  {/* IMAGEN EN TAMAÑO REAL (SIN RESTRICCIÓN ESTRICTA, PERO QUE QUEPA EN PANTALLA) */}
+                  {/* IMAGEN TAMAÑO REAL */}
                   <img 
                     src={STATS_CONFIG[selectedResource.type].icon} 
-                    style={{
-                        width: 'auto', 
-                        height: 'auto', 
-                        maxWidth: '100%', 
-                        maxHeight: '40vh', // Que ocupe hasta el 40% de la altura de la pantalla si es gigante
-                        marginBottom: '30px', 
-                        filter: 'drop-shadow(0 0 30px rgba(255,255,255,0.1))'
-                    }} 
+                    style={{width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '40vh', marginBottom: '30px', filter: 'drop-shadow(0 0 30px rgba(255,255,255,0.1))'}} 
                   />
                   
                   <div style={{fontSize: '4rem', fontWeight: 'bold', color: 'white', marginBottom: '10px', lineHeight: 1, textShadow: '0 0 20px rgba(255,255,255,0.3)'}}>
@@ -227,7 +244,6 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
       <div style={{background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: '20px', padding: '30px 20px', color: 'white', marginBottom: '30px', boxShadow: '0 0 20px rgba(6, 182, 212, 0.2)', border: '1px solid rgba(255,255,255,0.1)'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'30px'}}>
             <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
-                {/* AVATAR CLICKEABLE */}
                 <div 
                     onClick={() => setViewAvatar(true)}
                     style={{
@@ -242,42 +258,50 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
                 </div>
 
                 <div>
-                    <h2 style={{margin: 0, fontSize: '1.4rem', fontFamily: 'Rajdhani, sans-serif', color:'var(--primary)', textTransform:'uppercase'}}>
-                        {etapaVisual.nombreClase}
-                    </h2>
+                    <h2 style={{margin: 0, fontSize: '1.4rem', fontFamily: 'Rajdhani, sans-serif', color:'var(--primary)', textTransform:'uppercase'}}>{etapaVisual.nombreClase}</h2>
                     <p style={{margin: 0, fontSize:'0.8rem', color:'var(--text-muted)'}}>Nivel {nivel} | {puntosTotales} XP</p>
                 </div>
             </div>
             
-            {/* ORO GIGANTE CLICKEABLE */}
-            <div 
-                onClick={() => setSelectedResource({ type: 'gold', value: gold })}
-                style={{textAlign:'right', minWidth:'80px', cursor:'pointer', transition:'transform 0.1s'}}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}
-            >
-                <div style={{fontSize: '1.5rem', color:'#F59E0B', fontWeight:'bold', textShadow:'0 0 10px rgba(245, 158, 11, 0.5)', display:'flex', alignItems:'center', justifyContent:'flex-end', gap:'5px'}}>
-                    <img src={STATS_CONFIG.gold.icon} style={{width:'50px', height:'50px', objectFit:'contain'}} />
-                    {gold}
+            {/* RECURSOS ESPECIALES (ORO Y NEXO) */}
+            <div style={{display:'flex', gap:'15px'}}>
+                <div 
+                    onClick={() => setSelectedResource({ type: 'gold', value: gold })}
+                    style={{textAlign:'center', cursor:'pointer', transition:'transform 0.1s'}}
+                >
+                    <div style={{fontSize: '1.5rem', color:'#F59E0B', fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px'}}>
+                        <img src={STATS_CONFIG.gold.icon} style={{width:'40px'}} />
+                        {gold}
+                    </div>
                 </div>
-                <div style={{fontSize:'0.6rem', color:'var(--text-muted)', letterSpacing:'1px', marginTop:'5px', textTransform:'uppercase'}}>Fondos</div>
+                {/* Solo mostramos Nexo si tiene al menos 1, para que sea sorpresa/premium */}
+                {stats.nexo > 0 && (
+                    <div 
+                        onClick={() => setSelectedResource({ type: 'nexo', value: stats.nexo })}
+                        style={{textAlign:'center', cursor:'pointer', transition:'transform 0.1s'}}
+                    >
+                        <div style={{fontSize: '1.5rem', color:'#8B5CF6', fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px'}}>
+                            <img src={STATS_CONFIG.nexo.icon} style={{width:'40px'}} />
+                            {stats.nexo}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
 
-        {/* STATS GRID (GIGANTES Y CLICKEABLES) */}
+        {/* STATS GRID */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'25px'}}>
-            <div onClick={() => setSelectedResource({ type: 'vitalidad', value: stats.vitalidad })} style={{transition:'transform 0.1s'}} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}>
+            <div onClick={() => setSelectedResource({ type: 'vitalidad', value: stats.vitalidad })}>
                 <StatBadge type="vitalidad" value={stats.vitalidad} />
             </div>
-            <div onClick={() => setSelectedResource({ type: 'sabiduria', value: stats.sabiduria })} style={{transition:'transform 0.1s'}} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}>
+            <div onClick={() => setSelectedResource({ type: 'sabiduria', value: stats.sabiduria })}>
                 <StatBadge type="sabiduria" value={stats.sabiduria} />
             </div>
-            <div onClick={() => setSelectedResource({ type: 'carisma', value: stats.carisma })} style={{transition:'transform 0.1s'}} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}>
+            <div onClick={() => setSelectedResource({ type: 'carisma', value: stats.carisma })}>
                 <StatBadge type="carisma" value={stats.carisma} />
             </div>
         </div>
 
-        {/* Barra XP */}
         <div style={{width: '100%', background: 'rgba(255,255,255,0.1)', height: '8px', borderRadius: '10px', overflow: 'hidden'}}>
             <div style={{width: `${porcentajeNivel}%`, background: 'var(--secondary)', height: '100%', borderRadius: '10px', transition: 'width 1s ease', boxShadow:'0 0 10px var(--secondary)'}}></div>
         </div>
@@ -286,17 +310,18 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
         </div>
       </div>
 
-      {/* CONTROL TIEMPO */}
+      {/* COFRE SEMANAL */}
+      <WeeklyChest habitos={misHabitos} userUid={userUid} psicologoId={psicologoId} userData={userData} />
+
+      {/* CONTROL TIEMPO Y LISTA... (Igual que antes) */}
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', background: 'rgba(15, 23, 42, 0.6)', padding: '10px 15px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)'}}>
         <button onClick={() => setSemanaOffset(semanaOffset - 1)} style={{background:'rgba(255,255,255,0.1)', border:'none', width:'40px', height:'40px', borderRadius:'50%', cursor:'pointer', color:'white', fontSize:'1.2rem'}}>⬅</button>
         <div style={{textAlign:'center'}}>
             <span style={{fontWeight:'bold', color:'var(--primary)', fontSize:'1rem', textTransform:'uppercase', letterSpacing:'1px'}}>{getWeekLabel(semanaOffset)}</span>
-            <br/><small style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>{semanaOffset === 0 ? "● EN TIEMPO REAL" : "○ MODO HISTORIAL"}</small>
         </div>
         <button onClick={() => semanaOffset < 0 && setSemanaOffset(semanaOffset + 1)} style={{background: semanaOffset === 0 ? 'transparent' : 'rgba(255,255,255,0.1)', border: semanaOffset === 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', width:'40px', height:'40px', borderRadius:'50%', cursor: semanaOffset === 0 ? 'default' : 'pointer', color: semanaOffset === 0 ? 'gray' : 'white', fontSize:'1.2rem'}}>➡</button>
       </div>
 
-      {/* LISTA DE HÁBITOS */}
       <div style={{display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
         {misHabitos.map(habito => {
           if (habito.estado === 'archivado') return null;
@@ -309,7 +334,6 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
           
           return (
             <div key={habito.id} style={{background: 'var(--bg-card)', padding: '25px', borderRadius: '20px', border: logrado ? '1px solid var(--secondary)' : '1px solid rgba(255,255,255,0.05)', position: 'relative', overflow: 'hidden', opacity: esHistorial ? 0.7 : 1, boxShadow: logrado ? '0 0 20px rgba(16, 185, 129, 0.1)' : 'none'}}>
-              {logrado && <div style={{position: 'absolute', top: 0, right: 0, background: 'var(--secondary)', color: 'black', padding: '5px 15px', borderBottomLeftRadius: '15px', fontSize: '0.7rem', fontWeight: 'bold'}}>¡META CUMPLIDA!</div>}
               <div style={{marginBottom: '20px'}}>
                 <h4 style={{margin: '0 0 5px 0', fontSize: '1.3rem', color: 'white', letterSpacing:'0.5px'}}>{habito.titulo}</h4>
                 <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
