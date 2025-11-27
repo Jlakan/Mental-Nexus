@@ -4,23 +4,44 @@ import { db } from '../services/firebaseConfig';
 import { XP_POR_HABITO, TABLA_NIVELES, obtenerNivel, obtenerMetaSiguiente, PERSONAJES, PersonajeTipo, obtenerEtapaActual, STATS_CONFIG, StatTipo } from '../game/GameAssets';
 import { WeeklyChest } from '../components/WeeklyChest';
 
-// --- COMPONENTE DE STAT GRANDE ---
-const StatBadge = ({ type, value }: { type: StatTipo, value: number }) => {
+// --- COMPONENTE DE STAT (VERSIÓN GIGANTE PARA PACIENTE) ---
+const StatBadge = ({ type, value }: { type: 'vitalidad' | 'sabiduria' | 'carisma', value: number }) => {
     const [showTooltip, setShowTooltip] = useState(false);
     const config = STATS_CONFIG[type];
-    // Lógica visual del modal (Igual que antes)
+
     return (
-        <div onClick={() => setShowTooltip(true)} style={{position: 'relative', cursor: 'pointer', flex: 1}}>
-            <div style={{background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '15px 5px', textAlign: 'center', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', height: '100%', justifyContent: 'center'}}>
+        <div 
+            style={{position: 'relative', cursor: 'pointer', flex: 1}}
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+            onClick={() => setShowTooltip(!showTooltip)}
+        >
+            <div style={{
+                background: 'rgba(255,255,255,0.05)', 
+                border: '1px solid rgba(255,255,255,0.1)', 
+                borderRadius: '16px', padding: '15px 5px', textAlign: 'center', 
+                transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                height: '100%', justifyContent: 'center'
+            }}>
                 <img src={config.icon} alt={config.label} style={{width: '70px', height: '70px', objectFit:'contain', filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.3))'}} />
+                
                 <div>
                     <div style={{fontWeight: 'bold', color: 'white', fontSize: '1.5rem', lineHeight: 1}}>{value}</div>
                     <div style={{fontSize: '0.65rem', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop:'4px', color:'var(--text-muted)'}}>{config.label.split(' ')[0]}</div>
                 </div>
             </div>
+
             {showTooltip && (
-                <div style={{position: 'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999, background:'rgba(0,0,0,0.85)', backdropFilter:'blur(15px)', display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'}} onClick={(e) => {e.stopPropagation(); setShowTooltip(false);}}>
-                    <div style={{background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', padding: '40px', textAlign: 'center', maxWidth: '600px', width:'100%', boxShadow: '0 0 80px rgba(6, 182, 212, 0.15)', display: 'flex', flexDirection: 'column', alignItems: 'center'}} onClick={e => e.stopPropagation()}>
+                <div style={{
+                    position: 'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999,
+                    background:'rgba(0,0,0,0.85)', backdropFilter:'blur(15px)',
+                    display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'
+                }} onClick={(e) => { e.stopPropagation(); setShowTooltip(false); }}>
+                    <div style={{
+                        background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', 
+                        padding: '40px', textAlign: 'center', maxWidth: '600px', width:'100%',
+                        boxShadow: '0 0 80px rgba(6, 182, 212, 0.15)', display: 'flex', flexDirection: 'column', alignItems: 'center'
+                    }}>
                         <h2 style={{color: 'white', fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2.5rem', marginBottom:'30px'}}>{config.label}</h2>
                         <img src={config.icon} style={{width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '40vh', marginBottom: '30px', filter: 'drop-shadow(0 0 30px rgba(255,255,255,0.1))'}} />
                         <div style={{fontSize: '4rem', fontWeight: 'bold', color: 'white', marginBottom: '10px', lineHeight: 1}}>{value}</div>
@@ -33,7 +54,7 @@ const StatBadge = ({ type, value }: { type: StatTipo, value: number }) => {
     );
 };
 
-// ... (Utilidades de fecha) ...
+// --- UTILIDADES ---
 const getWeekId = (date: Date) => {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -41,20 +62,22 @@ const getWeekId = (date: Date) => {
   const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
   return `${d.getUTCFullYear()}-W${weekNo}`;
 };
-const getWeekLabel = (offset: number) => offset === 0 ? "SEMANA ACTUAL" : `HACE ${Math.abs(offset)} SEMANAS`;
+const getWeekLabel = (offset: number) => offset === 0 ? "Semana Actual" : `Hace ${Math.abs(offset)} semanas`;
 
 export function PanelPaciente({ userUid, psicologoId, userData }: any) {
-  // ... (Estados y Lógica igual que antes) ...
   const [misHabitos, setMisHabitos] = useState<any[]>([]);
+  
+  // Estados del Juego
   const [puntosTotales, setPuntosTotales] = useState(0);
   const [gold, setGold] = useState(0);
-  const [nexo, setNexo] = useState(0); // NUEVO ESTADO
+  const [nexo, setNexo] = useState(0); // Estado para NEXOS
   const [stats, setStats] = useState({ vitalidad: 0, sabiduria: 0, carisma: 0 });
   const [nivel, setNivel] = useState(1);
   const [xpSiguiente, setXpSiguiente] = useState(100);
   const [semanaOffset, setSemanaOffset] = useState(0);
   const [viewAvatar, setViewAvatar] = useState(false);
-  
+  const [selectedResource, setSelectedResource] = useState<{ type: StatTipo, value: number } | null>(null);
+
   const currentWeekId = getWeekId(new Date());
   const avatarKey = userData.avatarKey as PersonajeTipo;
   const avatarDef = PERSONAJES[avatarKey] || PERSONAJES['atlas'];
@@ -62,18 +85,26 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
 
   useEffect(() => {
     if (!psicologoId) return; 
-    // Escuchar también el perfil del usuario para ver cambios en Nexo/Bonos
+    
+    // 1. ESCUCHAR EL PERFIL DEL USUARIO (Para leer Nexos y Oro guardados)
     const userRef = doc(db, "users", psicologoId, "pacientes", userUid);
     const unsubUser = onSnapshot(userRef, (docSnap) => {
         if(docSnap.exists()) {
             const data = docSnap.data();
-            setNexo(data.nexo || 0);
+            setNexo(data.nexo || 0); // <--- Actualizamos Nexos
+            
+            // Opcional: Si quieres que el oro y XP vengan 100% de la base de datos
+            // y no del cálculo local, descomenta esto y ajusta calcularGamificacion
+            // setGold(data.gold || 0);
         }
     });
 
+    // 2. ESCUCHAR LOS HÁBITOS
     const q = query(collection(db, "users", psicologoId, "pacientes", userUid, "habitos"));
     const unsubHabits = onSnapshot(q, (snapshot) => {
       const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Auto-archivado
       lista.forEach(async (h: any) => {
         if (h.ultimaSemanaRegistrada !== currentWeekId) {
             const registroAArchivar = h.registro || { L: false, M: false, X: false, J: false, V: false, S: false, D: false };
@@ -85,9 +116,11 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
             });
         }
       });
+
       setMisHabitos(lista);
       calcularGamificacion(lista);
     });
+
     return () => { unsubUser(); unsubHabits(); };
   }, [userUid, psicologoId, currentWeekId]);
 
@@ -112,29 +145,32 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
         }
     });
     
-    const xp = (totalChecks * XP_POR_HABITO) + (userData.xp - (totalChecks * XP_POR_HABITO)); // Simplificación para respetar bonos guardados
+    const xp = totalChecks * XP_POR_HABITO;
+    // Sumamos el oro de hábitos + oro de bonos guardado en userData (simplificación visual)
     const oroCalculado = (totalChecks * 5) + (userData.gold - (totalChecks * 5));
 
-    // MEJOR: Leemos directo de userData lo guardado para no pelear con el cálculo local vs servidor
-    // Pero para la demo visual rápida, usamos el cálculo local de hábitos + bonos detectados
-    // (En una app real, todo el cálculo de XP debería ser Cloud Functions para evitar trampas).
+    const nuevoNivel = obtenerNivel(xp);
+    const meta = obtenerMetaSiguiente(nuevoNivel);
+
+    setPuntosTotales(xp);
+    // Preferimos mostrar lo que dice la BD si ya cargó, sino el cálculo
+    // Pero para evitar saltos visuales, usamos el cálculo local para XP/Oro de hábitos
+    setGold(userData.gold || oroCalculado); 
     
-    // Para efectos de esta versión:
-    setPuntosTotales(userData.xp || xp);
-    setGold(userData.gold || oroCalculado);
-    
-    // Stats
-    setStats({ 
-        vitalidad: userData.stats?.vitalidad || newVitalidad, 
-        sabiduria: userData.stats?.sabiduria || newSabiduria, 
-        carisma: userData.stats?.carisma || newCarisma 
-    });
-    
-    setNivel(obtenerNivel(userData.xp || xp));
-    setXpSiguiente(obtenerMetaSiguiente(obtenerNivel(userData.xp || xp)));
+    setStats({ vitalidad: newVitalidad, sabiduria: newSabiduria, carisma: newCarisma });
+    setNivel(nuevoNivel);
+    setXpSiguiente(meta);
+
+    if (userData.xp !== xp) {
+        try {
+            await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid), {
+                nivel: nuevoNivel, gold: oroCalculado, xp: xp,
+                stats: { vitalidad: newVitalidad, sabiduria: newSabiduria, carisma: newCarisma }
+            });
+        } catch (e) { console.error("Sync stats", e); }
+    }
   };
 
-  // ... (toggleDia, contarDias, getDatosVisualizacion, diasSemana igual que antes) ...
   const toggleDia = async (habitoId: string, dia: string, estadoActual: boolean) => {
     if (semanaOffset !== 0) return alert("Solo lectura");
     try {
@@ -142,10 +178,11 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
       await updateDoc(habitoRef, { [`registro.${dia}`]: !estadoActual });
     } catch (error) { console.error(error); }
   };
+
   const contarDias = (registro: any) => (!registro ? 0 : Object.values(registro).filter(val => val === true).length);
   const getDatosVisualizacion = (habito: any) => semanaOffset === 0 ? habito.registro : { L: false, M: false, X: false, J: false, V: false, S: false, D: false };
   const diasSemana = ["L", "M", "X", "J", "V", "S", "D"];
-
+  
   const xpPiso = TABLA_NIVELES[nivel - 1] || 0;
   const xpTecho = xpSiguiente;
   const porcentajeNivel = Math.min(100, Math.max(0, Math.round(((puntosTotales - xpPiso) / (xpTecho - xpPiso)) * 100)));
@@ -168,6 +205,21 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
           </div>
       )}
 
+      {/* MODAL DE RECURSO/STAT */}
+      {selectedResource && (
+          <div style={{position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999, background:'rgba(0,0,0,0.85)', backdropFilter:'blur(15px)', display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'}} onClick={() => setSelectedResource(null)}>
+              <div style={{background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', padding: '40px', textAlign: 'center', maxWidth: '600px', width:'100%', boxShadow: '0 0 80px rgba(6, 182, 212, 0.15)', display: 'flex', flexDirection: 'column', alignItems: 'center'}} onClick={e => e.stopPropagation()}>
+                  <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : (selectedResource.type === 'nexo' ? '#8B5CF6' : 'white'), fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2.5rem', marginBottom:'30px', textShadow: '0 0 20px rgba(0,0,0,0.5)'}}>
+                      {STATS_CONFIG[selectedResource.type].label}
+                  </h2>
+                  <img src={STATS_CONFIG[selectedResource.type].icon} style={{width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '40vh', marginBottom: '30px', filter: 'drop-shadow(0 0 30px rgba(255,255,255,0.1))'}} />
+                  <div style={{fontSize: '4rem', fontWeight: 'bold', color: 'white', marginBottom: '10px', lineHeight: 1, textShadow: '0 0 20px rgba(255,255,255,0.3)'}}>{selectedResource.value}</div>
+                  <p style={{color: 'var(--text-muted)', fontSize: '1.2rem', lineHeight: '1.6', maxWidth: '80%'}}>{STATS_CONFIG[selectedResource.type].desc}</p>
+                  <button onClick={() => setSelectedResource(null)} className="btn-primary" style={{marginTop: '40px', width: '200px', fontSize: '1.1rem'}}>ENTENDIDO</button>
+              </div>
+          </div>
+      )}
+
       {/* HUD PRINCIPAL */}
       <div style={{background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: '20px', padding: '30px 20px', color: 'white', marginBottom: '30px', boxShadow: '0 0 20px rgba(6, 182, 212, 0.2)', border: '1px solid rgba(255,255,255,0.1)'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'30px'}}>
@@ -181,10 +233,24 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
                 </div>
             </div>
             
-            {/* RECURSOS PRINCIPALES (ORO Y NEXO) */}
+            {/* RECURSOS (ORO Y NEXO) - SIEMPRE VISIBLES */}
             <div style={{display:'flex', gap:'15px'}}>
-                <StatBadge type="gold" value={gold} />
-                {nexo > 0 && <StatBadge type="nexo" value={nexo} />}
+                <div onClick={() => setSelectedResource({ type: 'gold', value: gold })} style={{textAlign:'right', minWidth:'80px', cursor:'pointer', transition:'transform 0.1s'}} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}>
+                    <div style={{fontSize: '1.5rem', color:'#F59E0B', fontWeight:'bold', textShadow:'0 0 10px rgba(245, 158, 11, 0.5)', display:'flex', alignItems:'center', justifyContent:'flex-end', gap:'5px'}}>
+                        <img src={STATS_CONFIG.gold.icon} style={{width:'50px', height:'50px', objectFit:'contain'}} />
+                        {gold}
+                    </div>
+                    <div style={{fontSize:'0.6rem', color:'var(--text-muted)', letterSpacing:'1px', marginTop:'5px', textTransform:'uppercase'}}>Fondos</div>
+                </div>
+
+                {/* NEXO (Ahora siempre visible, incluso si es 0) */}
+                <div onClick={() => setSelectedResource({ type: 'nexo', value: nexo })} style={{textAlign:'right', minWidth:'80px', cursor:'pointer', transition:'transform 0.1s'}} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}>
+                    <div style={{fontSize: '1.5rem', color:'#8B5CF6', fontWeight:'bold', textShadow:'0 0 10px rgba(139, 92, 246, 0.5)', display:'flex', alignItems:'center', justifyContent:'flex-end', gap:'5px'}}>
+                        <img src={STATS_CONFIG.nexo.icon} style={{width:'50px', height:'50px', objectFit:'contain'}} />
+                        {nexo}
+                    </div>
+                    <div style={{fontSize:'0.6rem', color:'var(--text-muted)', letterSpacing:'1px', marginTop:'5px', textTransform:'uppercase'}}>Nexo</div>
+                </div>
             </div>
         </div>
 
@@ -204,16 +270,15 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
       {/* COFRE SEMANAL */}
       <WeeklyChest habitos={misHabitos} userUid={userUid} psicologoId={psicologoId} userData={userData} />
 
-      {/* CONTROL TIEMPO */}
+      {/* CONTROL TIEMPO y LISTA DE HÁBITOS (Igual que antes) */}
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', background: 'rgba(15, 23, 42, 0.6)', padding: '10px 15px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)'}}>
-        <button onClick={() => setSemanaOffset(semanaOffset - 1)} style={{background:'rgba(255,255,255,0.1)', border:'none', width:'40px', height:'40px', borderRadius:'50%', cursor:'pointer', color:'white', fontSize:'0.9rem', fontFamily:'Rajdhani', fontWeight:'bold', textTransform:'uppercase'}}>PREV</button>
+        <button onClick={() => setSemanaOffset(semanaOffset - 1)} style={{background:'rgba(255,255,255,0.1)', border:'none', width:'40px', height:'40px', borderRadius:'50%', cursor:'pointer', color:'white', fontSize:'1.2rem'}}>⬅</button>
         <div style={{textAlign:'center'}}>
             <span style={{fontWeight:'bold', color:'var(--primary)', fontSize:'1rem', textTransform:'uppercase', letterSpacing:'1px'}}>{getWeekLabel(semanaOffset)}</span>
         </div>
-        <button onClick={() => semanaOffset < 0 && setSemanaOffset(semanaOffset + 1)} style={{background: semanaOffset === 0 ? 'transparent' : 'rgba(255,255,255,0.1)', border: semanaOffset === 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', width:'40px', height:'40px', borderRadius:'50%', cursor: semanaOffset === 0 ? 'default' : 'pointer', color: semanaOffset === 0 ? 'gray' : 'white', fontSize:'0.9rem', fontFamily:'Rajdhani', fontWeight:'bold', textTransform:'uppercase'}}>NEXT</button>
+        <button onClick={() => semanaOffset < 0 && setSemanaOffset(semanaOffset + 1)} style={{background: semanaOffset === 0 ? 'transparent' : 'rgba(255,255,255,0.1)', border: semanaOffset === 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', width:'40px', height:'40px', borderRadius:'50%', cursor: semanaOffset === 0 ? 'default' : 'pointer', color: semanaOffset === 0 ? 'gray' : 'white', fontSize:'1.2rem'}}>➡</button>
       </div>
 
-      {/* LISTA DE HÁBITOS */}
       <div style={{display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
         {misHabitos.map(habito => {
           if (habito.estado === 'archivado') return null;
