@@ -96,11 +96,11 @@ export function CharacterSelect({ userUid, psicologoId, onSelect }: Props) {
               
               <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5', marginBottom: '15px'}}>{p.descripcion}</p>
               
-              {/* Stats iniciales */}
+              {/* Stats iniciales (CORREGIDO: VINCULACION EN VEZ DE CARISMA) */}
               <div style={{display:'flex', justifyContent:'center', gap:'10px', fontSize:'0.8rem', opacity: 0.8}}>
-                  {p.statsBase.vitalidad > 0 && <span title="Vitalidad">❤️ +{p.statsBase.vitalidad}</span>}
-                  {p.statsBase.sabiduria > 0 && <span title="Sabiduría">🧠 +{p.statsBase.sabiduria}</span>}
-                  {p.statsBase.carisma > 0 && <span title="Carisma">🤝 +{p.statsBase.carisma}</span>}
+                  {p.statsBase.vitalidad > 0 && <span title="Integridad">❤️ +{p.statsBase.vitalidad}</span>}
+                  {p.statsBase.sabiduria > 0 && <span title="I+D">🧠 +{p.statsBase.sabiduria}</span>}
+                  {p.statsBase.vinculacion > 0 && <span title="Red">🤝 +{p.statsBase.vinculacion}</span>}
               </div>
             </div>
           );
