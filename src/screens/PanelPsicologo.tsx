@@ -22,7 +22,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
   
   // Modal y Búsqueda
   const [selectedResource, setSelectedResource] = useState<{ type: StatTipo, value: number } | null>(null);
-  const [busqueda, setBusqueda] = useState(""); // Estado para el buscador
+  const [busqueda, setBusqueda] = useState(""); 
 
   // 1. Cargar lista de pacientes
   useEffect(() => {
@@ -120,7 +120,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                 <h4 style={{textTransform:'uppercase', fontSize:'1rem', color:'var(--secondary)', letterSpacing:'2px', margin:0}}>
                     Expedientes ({pacientesFiltrados.length})
                 </h4>
-                {/* BUSCADOR DE PACIENTES */}
+                {/* BUSCADOR */}
                 <div style={{position: 'relative'}}>
                     <span style={{position:'absolute', left:'10px', top:'50%', transform:'translateY(-50%)'}}>🔍</span>
                     <input 
@@ -128,45 +128,50 @@ export function PanelPsicologo({ userData, userUid }: any) {
                         placeholder="Buscar paciente..." 
                         value={busqueda}
                         onChange={(e) => setBusqueda(e.target.value)}
-                        style={{
-                            padding: '10px 10px 10px 35px', 
-                            borderRadius: '20px', 
-                            background: 'rgba(255,255,255,0.1)', 
-                            border: '1px solid rgba(255,255,255,0.2)',
-                            color: 'white',
-                            width: '250px'
-                        }}
+                        style={{padding: '10px 10px 10px 35px', borderRadius: '20px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', width: '250px'}}
                     />
                 </div>
             </div>
             
-            {/* GRID DE PACIENTES (2 COLUMNAS O MÁS) */}
+            {/* GRID DE PACIENTES */}
             <div style={{display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))'}}>
-                {pacientesFiltrados.map(p => (
-                <div key={p.id} onClick={() => p.isAuthorized && setPacienteSeleccionado(p)} style={{background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', padding: '20px', borderRadius: '16px', transition: 'all 0.2s', cursor: p.isAuthorized ? 'pointer' : 'default', position: 'relative', overflow:'hidden'}} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}>
-                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                        <div>
-                            <div style={{fontWeight: 'bold', color: 'white', fontSize:'1.3rem'}}>{p.displayName}</div>
-                            <div style={{fontSize: '0.9rem', color: 'var(--text-muted)'}}>{p.email}</div>
+                {pacientesFiltrados.map(p => {
+                    // Helper para obtener imagen de avatar
+                    const avatarData = p.avatarKey ? PERSONAJES[p.avatarKey as PersonajeTipo]?.etapas[0] : null;
+
+                    return (
+                        <div key={p.id} onClick={() => p.isAuthorized && setPacienteSeleccionado(p)} style={{background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', padding: '20px', borderRadius: '16px', transition: 'all 0.2s', cursor: p.isAuthorized ? 'pointer' : 'default', position: 'relative', overflow:'hidden'}} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}>
+                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                <div>
+                                    <div style={{fontWeight: 'bold', color: 'white', fontSize:'1.3rem'}}>{p.displayName}</div>
+                                    <div style={{fontSize: '0.9rem', color: 'var(--text-muted)'}}>{p.email}</div>
+                                </div>
+                                
+                                {/* MINI AVATAR CORREGIDO */}
+                                <div style={{width:'50px', height:'50px', borderRadius:'50%', overflow:'hidden', background:'black', border:'1px solid rgba(255,255,255,0.1)'}}>
+                                    {avatarData ? (
+                                        avatarData.imagen.endsWith('.mp4') ? 
+                                        <video src={avatarData.imagen} autoPlay loop muted playsInline style={{width:'100%', height:'100%', objectFit:'cover'}} /> :
+                                        <img src={avatarData.imagen} style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                                    ) : (
+                                        <div style={{width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem'}}>👤</div>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            <div style={{marginTop: '15px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                <span style={{background: p.isAuthorized ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)', color: p.isAuthorized ? 'var(--secondary)' : '#EF4444', padding:'4px 10px', borderRadius:'4px', fontSize:'0.7rem', fontWeight:'bold', border: p.isAuthorized ? '1px solid var(--secondary)' : '1px solid #EF4444'}}>
+                                    {p.isAuthorized ? "ACTIVO" : "PENDIENTE"}
+                                </span>
+                                {!p.isAuthorized && (
+                                    <button onClick={(e) => { e.stopPropagation(); autorizarPaciente(p.id, p.isAuthorized); }} style={{padding: '5px 10px', borderRadius: '6px', fontSize: '0.7rem', cursor:'pointer', fontWeight: 'bold', background: 'var(--primary)', color: 'black', border:'none'}}>
+                                        AUTORIZAR ACCESO
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                        {/* Icono de estado o avatar pequeño si tuviéramos */}
-                        <div style={{fontSize:'2rem', opacity:0.5, filter: 'grayscale(1)'}}>
-                            {p.avatarKey ? PERSONAJES[p.avatarKey as PersonajeTipo]?.etapas[0].emoji : "👤"}
-                        </div>
-                    </div>
-                    
-                    <div style={{marginTop: '15px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                         <span style={{background: p.isAuthorized ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)', color: p.isAuthorized ? 'var(--secondary)' : '#EF4444', padding:'4px 10px', borderRadius:'4px', fontSize:'0.7rem', fontWeight:'bold', border: p.isAuthorized ? '1px solid var(--secondary)' : '1px solid #EF4444'}}>
-                             {p.isAuthorized ? "ACTIVO" : "PENDIENTE"}
-                         </span>
-                         {!p.isAuthorized && (
-                             <button onClick={(e) => { e.stopPropagation(); autorizarPaciente(p.id, p.isAuthorized); }} style={{padding: '5px 10px', borderRadius: '6px', fontSize: '0.7rem', cursor:'pointer', fontWeight: 'bold', background: 'var(--primary)', color: 'black', border:'none'}}>
-                                 AUTORIZAR ACCESO
-                             </button>
-                         )}
-                    </div>
-                </div>
-                ))}
+                    );
+                })}
             </div>
             
             {pacientesFiltrados.length === 0 && (
@@ -177,7 +182,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
   }
 
   // VISTA 2: DETALLE DEL PACIENTE (SI HAY SELECCIONADO)
-  // Datos del Avatar para mostrar
   const avatarKey = pacienteSeleccionado.avatarKey as PersonajeTipo;
   const avatarDef = PERSONAJES[avatarKey] || PERSONAJES['atlas'];
   const nivelPaciente = obtenerNivel(pacienteSeleccionado.xp || 0);
@@ -192,7 +196,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
               <div style={{background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', padding: '40px', textAlign: 'center', maxWidth: '600px', width:'100%', boxShadow: '0 0 80px rgba(6, 182, 212, 0.15)', display: 'flex', flexDirection: 'column', alignItems: 'center'}} onClick={e => e.stopPropagation()}>
                   <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : (selectedResource.type === 'nexo' ? '#8B5CF6' : 'white'), fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2.5rem', marginBottom:'30px', textShadow: '0 0 20px rgba(0,0,0,0.5)'}}>{STATS_CONFIG[selectedResource.type].label}</h2>
                   <img src={STATS_CONFIG[selectedResource.type].icon} style={{width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '40vh', marginBottom: '30px', filter: 'drop-shadow(0 0 30px rgba(255,255,255,0.1))'}} />
-                  <div style={{fontSize: '4rem', fontWeight: 'bold', color: 'white', marginBottom: '10px', lineHeight: 1}}>{selectedResource.value}</div>
+                  <div style={{fontSize: '4rem', fontWeight: 'bold', color: 'white', marginBottom: '10px', lineHeight: 1, textShadow: '0 0 20px rgba(255,255,255,0.3)'}}>{selectedResource.value}</div>
                   <p style={{color: 'var(--text-muted)', fontSize: '1.2rem', lineHeight: '1.6', maxWidth: '80%'}}>{STATS_CONFIG[selectedResource.type].desc}</p>
                   <button onClick={() => setSelectedResource(null)} className="btn-primary" style={{marginTop: '40px', width: '200px', fontSize: '1.1rem'}}>ENTENDIDO</button>
               </div>
@@ -256,7 +260,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
       {analizarBalance()}
 
-      {/* FORMULARIO Y LISTA DE HÁBITOS (Igual que antes) */}
+      {/* FORMULARIO DE HÁBITOS (IGUAL) */}
       <div style={{background: 'var(--bg-card)', padding: '30px', borderRadius: '16px', marginBottom: '30px', border: editingId ? '2px solid var(--primary)' : 'var(--glass-border)', boxShadow: '0 4px 30px rgba(0,0,0,0.3)'}}>
         <h4 style={{color: 'white', marginTop:0, fontSize:'1.2rem', marginBottom:'20px'}}>{editingId ? "✏️ EDITAR PROTOCOLO" : "NUEVO PROTOCOLO"}</h4>
         
@@ -290,6 +294,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
         </div>
       </div>
       
+      {/* LISTA DE HÁBITOS */}
       <div style={{display: 'grid', gap: '15px'}}>
         {habitosPaciente.map(h => {
             const diasLogrados = contarDias(h.registro);
@@ -310,7 +315,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                     </div>
                 </div>
                 <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.9rem', color:'var(--text-muted)', marginBottom:'5px'}}><span>{diasLogrados}/{meta} Ejecuciones</span><span>{esArchivado ? "FINALIZADO" : "ACTIVO"}</span></div>
-                <div style={{width: '100%', background: 'rgba(0,0,0,0.5)', height: '6px', borderRadius:'3px', overflow:'hidden'}}><div style={{width: `${porcentaje}%`, background: cumplido ? 'var(--secondary)' : 'var(--primary)', height: '100%'}}></div></div>
+                <div style={{width: '100%', background: 'rgba(0,0,0,0.5)', height: '6px', borderRadius:'3px', overflow:'hidden'}}><div style={{width: `${porcentaje}%`, background: 'var(--secondary)', height: '100%'}}></div></div>
                 </div>
                 <div style={{display:'flex', gap:'15px', marginLeft:'20px', alignItems:'center'}}>
                     <button onClick={() => cargarParaEditar(h)} title="Editar" style={{background:'none', border:'1px solid var(--primary)', color:'var(--primary)', padding:'8px', borderRadius:'8px', cursor:'pointer'}}><IconEdit /></button>
