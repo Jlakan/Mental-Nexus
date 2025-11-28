@@ -113,7 +113,13 @@ export function PanelPsicologo({ userData, userUid }: any) {
         <div style={{textAlign: 'left'}}>
             {/* HEADER GENERAL */}
             <div style={{background: 'var(--bg-card)', padding: '20px', borderRadius: '16px', marginBottom: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: 'var(--glass-border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <div><h3 style={{margin:0, color: 'var(--primary)', fontSize:'1.5rem'}}>👨‍⚕️ Mi Consultorio</h3><p style={{margin:0, fontSize:'0.9rem', color:'var(--text-muted)'}}>Código: <strong style={{color:'white'}}>{userData.codigoVinculacion}</strong></p></div>
+            <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+    <img src="/psicologo.png" style={{width:'60px', height:'60px', borderRadius:'50%', border:'2px solid var(--primary)', objectFit:'cover'}} />
+    <div>
+        <h3 style={{margin:0, color: 'var(--primary)', fontSize:'1.5rem'}}>PANEL DE CONTROL</h3>
+        <p style={{margin:0, fontSize:'0.9rem', color:'var(--text-muted)'}}>Código: <strong style={{color:'white'}}>{userData.codigoVinculacion}</strong></p>
+    </div>
+</div>
             </div>
 
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
