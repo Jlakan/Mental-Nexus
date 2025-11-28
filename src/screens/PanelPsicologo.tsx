@@ -20,8 +20,9 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [recompensas, setRecompensas] = useState<string[]>([]);
   
-  // Modal de recursos
+  // Modal y Búsqueda
   const [selectedResource, setSelectedResource] = useState<{ type: StatTipo, value: number } | null>(null);
+  const [busqueda, setBusqueda] = useState(""); // Estado para el buscador
 
   // 1. Cargar lista de pacientes
   useEffect(() => {
@@ -40,6 +41,12 @@ export function PanelPsicologo({ userData, userUid }: any) {
     const unsubscribe = onSnapshot(q, (snap) => setHabitosPaciente(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     return () => unsubscribe();
   }, [pacienteSeleccionado]);
+
+  // FILTRO DE PACIENTES
+  const pacientesFiltrados = pacientes.filter(p => 
+    p.displayName.toLowerCase().includes(busqueda.toLowerCase()) || 
+    p.email.toLowerCase().includes(busqueda.toLowerCase())
+  );
 
   const toggleRecompensa = (tipo: string) => {
     if (recompensas.includes(tipo)) setRecompensas(recompensas.filter(r => r !== tipo));
@@ -109,17 +116,43 @@ export function PanelPsicologo({ userData, userUid }: any) {
                 <div><h3 style={{margin:0, color: 'var(--primary)', fontSize:'1.5rem'}}>👨‍⚕️ Mi Consultorio</h3><p style={{margin:0, fontSize:'0.9rem', color:'var(--text-muted)'}}>Código: <strong style={{color:'white'}}>{userData.codigoVinculacion}</strong></p></div>
             </div>
 
-            <h4 style={{textTransform:'uppercase', fontSize:'1rem', color:'var(--secondary)', letterSpacing:'2px', marginBottom:'20px'}}>Selecciona un Agente para gestionar</h4>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+                <h4 style={{textTransform:'uppercase', fontSize:'1rem', color:'var(--secondary)', letterSpacing:'2px', margin:0}}>
+                    Expedientes ({pacientesFiltrados.length})
+                </h4>
+                {/* BUSCADOR DE PACIENTES */}
+                <div style={{position: 'relative'}}>
+                    <span style={{position:'absolute', left:'10px', top:'50%', transform:'translateY(-50%)'}}>🔍</span>
+                    <input 
+                        type="text" 
+                        placeholder="Buscar paciente..." 
+                        value={busqueda}
+                        onChange={(e) => setBusqueda(e.target.value)}
+                        style={{
+                            padding: '10px 10px 10px 35px', 
+                            borderRadius: '20px', 
+                            background: 'rgba(255,255,255,0.1)', 
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            color: 'white',
+                            width: '250px'
+                        }}
+                    />
+                </div>
+            </div>
             
-            <div style={{display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))'}}>
-                {pacientes.map(p => (
+            {/* GRID DE PACIENTES (2 COLUMNAS O MÁS) */}
+            <div style={{display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))'}}>
+                {pacientesFiltrados.map(p => (
                 <div key={p.id} onClick={() => p.isAuthorized && setPacienteSeleccionado(p)} style={{background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', padding: '20px', borderRadius: '16px', transition: 'all 0.2s', cursor: p.isAuthorized ? 'pointer' : 'default', position: 'relative', overflow:'hidden'}} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}>
                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                         <div>
                             <div style={{fontWeight: 'bold', color: 'white', fontSize:'1.3rem'}}>{p.displayName}</div>
                             <div style={{fontSize: '0.9rem', color: 'var(--text-muted)'}}>{p.email}</div>
                         </div>
-                        <div style={{fontSize:'2rem', opacity:0.5}}>👤</div>
+                        {/* Icono de estado o avatar pequeño si tuviéramos */}
+                        <div style={{fontSize:'2rem', opacity:0.5, filter: 'grayscale(1)'}}>
+                            {p.avatarKey ? PERSONAJES[p.avatarKey as PersonajeTipo]?.etapas[0].emoji : "👤"}
+                        </div>
                     </div>
                     
                     <div style={{marginTop: '15px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
@@ -135,6 +168,10 @@ export function PanelPsicologo({ userData, userUid }: any) {
                 </div>
                 ))}
             </div>
+            
+            {pacientesFiltrados.length === 0 && (
+                <p style={{textAlign:'center', color:'gray', marginTop:'50px'}}>No se encontraron pacientes.</p>
+            )}
         </div>
       );
   }
@@ -164,7 +201,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
       {/* HEADER DE NAVEGACIÓN */}
       <button onClick={() => setPacienteSeleccionado(null)} style={{background:'none', border:'none', color:'var(--text-muted)', fontSize:'1rem', cursor:'pointer', marginBottom:'20px', display:'flex', alignItems:'center', gap:'5px'}}>
-          ⬅ Volver a la lista
+          ⬅ VOLVER A LA LISTA
       </button>
 
       {/* FICHA DEL JUGADOR (CON AVATAR) */}
@@ -173,7 +210,11 @@ export function PanelPsicologo({ userData, userUid }: any) {
           <div style={{display:'flex', alignItems:'center', gap:'20px'}}>
               {/* AVATAR (VIDEO) */}
               <div style={{width:'100px', height:'100px', borderRadius:'50%', overflow:'hidden', boxShadow:'0 0 20px var(--primary)', border: '2px solid var(--primary)', background: 'black'}}>
-                <video src={etapaVisual.imagen} autoPlay loop muted playsInline style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                {etapaVisual.imagen.endsWith('.mp4') ? (
+                    <video src={etapaVisual.imagen} autoPlay loop muted playsInline style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                ) : (
+                    <img src={etapaVisual.imagen} style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                )}
               </div>
               <div>
                   <h1 style={{margin:0, fontSize:'2rem', color:'white', fontFamily:'Rajdhani'}}>{pacienteSeleccionado.displayName}</h1>
@@ -215,7 +256,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
       {analizarBalance()}
 
-      {/* FORMULARIO (MISMO DE ANTES PERO MÁS ANCHO) */}
+      {/* FORMULARIO Y LISTA DE HÁBITOS (Igual que antes) */}
       <div style={{background: 'var(--bg-card)', padding: '30px', borderRadius: '16px', marginBottom: '30px', border: editingId ? '2px solid var(--primary)' : 'var(--glass-border)', boxShadow: '0 4px 30px rgba(0,0,0,0.3)'}}>
         <h4 style={{color: 'white', marginTop:0, fontSize:'1.2rem', marginBottom:'20px'}}>{editingId ? "✏️ EDITAR PROTOCOLO" : "NUEVO PROTOCOLO"}</h4>
         
@@ -249,7 +290,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
         </div>
       </div>
       
-      {/* LISTA DE HÁBITOS */}
       <div style={{display: 'grid', gap: '15px'}}>
         {habitosPaciente.map(h => {
             const diasLogrados = contarDias(h.registro);
