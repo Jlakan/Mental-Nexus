@@ -15,39 +15,59 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
   const [reward, setReward] = useState<any>(null);
   const [luckPercent, setLuckPercent] = useState(1);
   
-  // 1. FECHA ACTUAL
   const now = new Date();
-  const today = now.getDay(); // 0 = Domingo, 1 = Lunes
+  const dayOfWeek = now.getDay(); // 0 = Domingo, 1 = Lunes
   
-  // 2. LÓGICA DE DÍA DE APERTURA
-  // Descomenta la linea de abajo para PROBAR hoy mismo sin importar el día
-  // const isOpeningDay = true; 
-  const isOpeningDay = today === 0 || today === 1; 
+  // LÓGICA DE APERTURA: Solo Domingo (0) o Lunes (1)
+  const isOpeningDay = dayOfWeek === 0 || dayOfWeek === 1;
 
-  // 3. CÁLCULO DE ID DE SEMANA (Estandarizado con PanelPaciente para evitar errores)
-  const getWeekId = (date: Date) => {
-      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-      const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  // --- CORRECCIÓN DE FECHA ---
+  const getRewardWeekId = () => {
+      const dateToCheck = new Date(now);
+      // Si es Lunes, restamos 1 día para obtener el ID de la semana que ACABA de terminar (la del Domingo)
+      // Así, si cobras el Lunes 50, el sistema registra que cobraste la Semana 49.
+      if (dayOfWeek === 1) {
+          dateToCheck.setDate(dateToCheck.getDate() - 1);
+      }
+      
+      // Algoritmo estándar de semana ISO
+      const d = new Date(Date.UTC(dateToCheck.getFullYear(), dateToCheck.getMonth(), dateToCheck.getDate()));
+      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+      const weekNo = Math.ceil(( ( (d.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
       return `${d.getUTCFullYear()}-W${weekNo}`;
   };
+
+  const targetWeekId = getRewardWeekId();
   
-  const currentWeekId = getWeekId(now);
-  
-  // 4. VERIFICAR SI YA SE RECLAMÓ
-  const isClaimed = userData.claimedChests?.includes(currentWeekId);
+  // Verificamos si ESTE cofre específico (el calculado arriba) ya se reclamó
+  const isClaimed = userData.claimedChests?.includes(targetWeekId);
 
   useEffect(() => {
-      // Calculamos la suerte basada en el rendimiento
+      // --- CORRECCIÓN DE SUERTE ---
+      // Si es Lunes, el 'registro' actual está vacío (semana nueva).
+      // Debemos mirar el historial de la semana objetivo para calcular la suerte justa.
+      
       const habitosCompletados = habitos.filter(h => {
-          const checks = Object.values(h.registro || {}).filter(v => v === true).length;
+          let checks = 0;
           const meta = h.frecuenciaMeta || 7;
+
+          if (dayOfWeek === 1) {
+              // Es Lunes: Buscar en el historial usando el ID de la semana pasada
+              const registroPasado = h.historial?.[targetWeekId];
+              // El historial puede guardar solo los checks o el objeto completo {registro:..., comentarios:...}
+              const datosReales = registroPasado?.registro || registroPasado || {};
+              checks = Object.values(datosReales).filter(v => v === true).length;
+          } else {
+              // Es Domingo (u otro día): Usar el registro actual
+              checks = Object.values(h.registro || {}).filter(v => v === true).length;
+          }
+          
           return checks >= meta;
       }).length;
-      // Fórmula de suerte: Base 1% + 5% por cada hábito cumplido
+
       setLuckPercent(1 + (habitosCompletados * 5)); 
-  }, [habitos]);
+  }, [habitos, dayOfWeek, targetWeekId]);
 
   const openChest = async () => {
     if (isClaimed) return;
@@ -59,7 +79,6 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
     const roll = Math.random() * 100; 
     let premio = { type: 'gold', amount: 0, label: 'Fondos Extra' };
 
-    // TABLA DE LOOT (Probabilidades)
     if (roll <= luckPercent) {
         premio = { type: 'nexo', amount: 1, label: '¡NEXO LEGENDARIO!' };
     } else if (roll <= (luckPercent + 20)) {
@@ -75,10 +94,9 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
 
     try {
         const updates: any = {
-            claimedChests: arrayUnion(currentWeekId)
+            claimedChests: arrayUnion(targetWeekId) // Guardamos el ID correcto (ej: W49 aunque sea Lunes de W50)
         };
         
-        // Guardado en campos BONUS (Economía segura)
         if (premio.type === 'nexo') {
             updates['nexo'] = increment(1); 
         } else if (premio.type === 'gold') {
@@ -91,10 +109,9 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
     } catch (e) { console.error("Error guardando premio", e); }
   };
 
-  // ESTADO: YA RECLAMADO
   if (isClaimed) return (
       <div style={{textAlign:'center', opacity:0.6, padding:'15px', border:'1px dashed rgba(255,255,255,0.2)', borderRadius:'12px', marginBottom:'30px'}}>
-          <p style={{color:'var(--text-muted)', fontSize:'0.9rem', margin:0}}>✅ Suministro de la semana {currentWeekId} procesado.</p>
+          <p style={{color:'var(--text-muted)', fontSize:'0.9rem', margin:0}}>✅ Suministro de la semana {targetWeekId} procesado.</p>
       </div>
   );
 
@@ -106,7 +123,9 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
     }}>
       {!isOpen ? (
             <div onClick={openChest} style={{cursor: isOpeningDay ? 'pointer' : 'default', transition: 'transform 0.1s'}} className={isOpeningDay ? "chest-container" : ""}>
-                <h3 style={{margin:'0 0 15px 0', color: isOpeningDay ? 'var(--secondary)' : 'var(--text-muted)', fontFamily:'Rajdhani', letterSpacing:'1px'}}>SUMINISTRO SEMANAL</h3>
+                <h3 style={{margin:'0 0 15px 0', color: isOpeningDay ? 'var(--secondary)' : 'var(--text-muted)', fontFamily:'Rajdhani', letterSpacing:'1px'}}>
+                    {dayOfWeek === 1 ? "SUMINISTRO ANTERIOR (GRACIA)" : "SUMINISTRO SEMANAL"}
+                </h3>
                 <img 
                     src={isOpeningDay ? "/cofre_listo.png" : "/cofre_cerrado.png"} 
                     style={{
@@ -123,7 +142,6 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
                         <span style={{fontSize:'0.75rem', background:'rgba(0,0,0,0.3)', padding:'5px 10px', borderRadius:'6px', color:'var(--text-muted)'}}>🔒 DISPONIBLE DOMINGO/LUNES</span>
                     )}
                 </div>
-                {/* BARRA DE SUERTE */}
                 <div style={{marginTop:'15px', display:'flex', alignItems:'center', justifyContent:'center', gap:'10px', fontSize:'0.7rem', color:'var(--text-muted)'}}>
                    <span>Probabilidad Legendaria:</span>
                    <span style={{color:'var(--secondary)', fontWeight:'bold'}}>{luckPercent}%</span>
