@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { doc, updateDoc, collection, query, onSnapshot, increment, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, onSnapshot, increment, arrayUnion, orderBy, addDoc } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { XP_POR_HABITO, TABLA_NIVELES, obtenerNivel, obtenerMetaSiguiente, PERSONAJES, PersonajeTipo, obtenerEtapaActual, STATS_CONFIG, StatTipo } from '../game/GameAssets';
 import { WeeklyChest } from '../components/WeeklyChest';
@@ -82,6 +82,22 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   const [showAllHabits, setShowAllHabits] = useState(false);
   const [expandedQuestId, setExpandedQuestId] = useState<string | null>(null);
 
+  // OBJETIVO PERSONAL (NUEVO SISTEMA)
+  const [showObjetivoModal, setShowObjetivoModal] = useState(false);
+  
+  // Datos del objetivo
+  const [miObjetivo, setMiObjetivo] = useState("");
+  const [misAcciones, setMisAcciones] = useState<string[]>([]);
+  
+  // Inputs temporales para definir objetivo
+  const [tempAccion, setTempAccion] = useState("");
+  
+  // Datos para la reflexión diaria
+  const [nuevaReflexion, setNuevaReflexion] = useState("");
+  const [valoracionDia, setValoracionDia] = useState<'cerca' | 'neutro' | 'lejos' | null>(null);
+  const [accionesCheck, setAccionesCheck] = useState<string[]>([]); // Cuales marqué hoy
+  const [historialReflexiones, setHistorialReflexiones] = useState<any[]>([]);
+
   const prevLevelRef = useRef(1);
   const currentWeekId = getWeekId(new Date());
   
@@ -92,11 +108,22 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   useEffect(() => {
     if (!psicologoId) return; 
 
-    // 1. PERFIL
+    // 1. PERFIL (Carga objetivo y acciones guardadas)
     const unsubUser = onSnapshot(doc(db, "users", psicologoId, "pacientes", userUid), (docSnap) => {
         if(docSnap.exists()) {
             const data = docSnap.data();
             setNexo(data.nexo || 0);
+            
+            // Cargar datos del objetivo si existen
+            if (data.objetivoPersonalData) {
+                setMiObjetivo(data.objetivoPersonalData.titulo || "");
+                setMisAcciones(data.objetivoPersonalData.acciones || []);
+            } else if (data.objetivoPersonal) {
+                // Compatibilidad versión anterior (solo texto)
+                setMiObjetivo(data.objetivoPersonal);
+                setMisAcciones([]);
+            }
+
             if (misHabitos.length > 0) calcularGamificacion(misHabitos, data);
         }
     });
@@ -134,10 +161,72 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
         setMisMisiones(quests);
     });
 
-    return () => { unsubUser(); unsubHabits(); unsubMisiones(); };
+    // 4. HISTORIAL REFLEXIONES
+    const qReflexiones = query(collection(db, "users", psicologoId, "pacientes", userUid, "diario_objetivo"), orderBy("createdAt", "desc"));
+    const unsubReflexiones = onSnapshot(qReflexiones, (snapshot) => {
+        setHistorialReflexiones(snapshot.docs.map(d => d.data()));
+    });
+
+    return () => { unsubUser(); unsubHabits(); unsubMisiones(); unsubReflexiones(); };
   }, [userUid, psicologoId, currentWeekId]);
 
-  // --- CÁLCULO ---
+  // --- LÓGICA DE DEFINICIÓN DE OBJETIVO ---
+  const agregarAccionLista = () => {
+      if (!tempAccion.trim()) return;
+      if (misAcciones.length >= 4) return alert("Máximo 4 acciones clave.");
+      setMisAcciones([...misAcciones, tempAccion]);
+      setTempAccion("");
+  };
+
+  const eliminarAccionLista = (index: number) => {
+      setMisAcciones(misAcciones.filter((_, i) => i !== index));
+  };
+
+  const guardarDefinicionObjetivo = async () => {
+      if(!miObjetivo.trim()) return alert("El objetivo debe tener un título.");
+      if(misAcciones.length === 0) return alert("Define al menos una acción clave para lograrlo.");
+
+      const dataToSave = {
+          titulo: miObjetivo,
+          acciones: misAcciones
+      };
+
+      await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid), { 
+          objetivoPersonalData: dataToSave 
+      });
+      alert("¡Objetivo y estrategia guardados!");
+  };
+
+  const toggleCheckAccion = (accion: string) => {
+      if (accionesCheck.includes(accion)) setAccionesCheck(accionesCheck.filter(a => a !== accion));
+      else setAccionesCheck([...accionesCheck, accion]);
+  };
+
+  const guardarReflexionObjetivo = async () => {
+      if(!nuevaReflexion.trim() || !valoracionDia) return alert("Escribe una reflexión y valora tu día.");
+      
+      try {
+          await addDoc(collection(db, "users", psicologoId, "pacientes", userUid, "diario_objetivo"), {
+              reflexion: nuevaReflexion,
+              valoracion: valoracionDia,
+              accionesCompletadas: accionesCheck, // Guardamos qué acciones marcó hoy
+              createdAt: new Date(),
+              fechaString: new Date().toLocaleDateString()
+          });
+          
+          await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid), { 
+              bonusXP: increment(30), // Más XP por ser detallado
+              bonusGold: increment(15)
+          });
+
+          setNuevaReflexion("");
+          setValoracionDia(null);
+          setAccionesCheck([]);
+          alert("Reflexión guardada. +30 XP | +15 Oro");
+      } catch (e) { console.error(e); }
+  };
+
+  // --- CÁLCULO (IGUAL) ---
   const calcularGamificacion = async (habitos: any[], currentProfileData: any) => {
     let totalVitalidad = avatarDef.statsBase.vitalidad;
     let totalSabiduria = avatarDef.statsBase.sabiduria;
@@ -265,7 +354,7 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   const xpTecho = xpSiguiente;
   const porcentajeNivel = Math.min(100, Math.max(0, Math.round(((puntosTotales - xpPiso) / (xpTecho - xpPiso)) * 100)));
 
-  // RENDER MISION CARD
+  // RENDER QUEST CARD
   const renderQuestCard = (quest: Quest, isModal: boolean = false) => {
       const activeSubs = quest.subObjetivos.filter(s => s.completado).length;
       const totalSubs = quest.subObjetivos.length;
@@ -306,7 +395,14 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
                       ) : (
                           <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
                               {quest.subObjetivos.map(sub => (
-                                  <div key={sub.id} onClick={() => toggleSubObjetivo(quest, sub.id)} style={{display:'flex', alignItems:'center', gap:'10px', padding:'10px', background: sub.completado ? 'rgba(16, 185, 129, 0.2)' : 'rgba(0,0,0,0.3)', borderRadius:'8px', cursor: quest.estado === 'completada' ? 'default' : 'pointer', border: sub.completado ? '1px solid #10B981' : '1px solid transparent'}}>
+                                  <div key={sub.id} 
+                                       onClick={() => toggleSubObjetivo(quest, sub.id)}
+                                       style={{
+                                           display:'flex', alignItems:'center', gap:'10px', padding:'10px', 
+                                           background: sub.completado ? 'rgba(16, 185, 129, 0.2)' : 'rgba(0,0,0,0.3)',
+                                           borderRadius:'8px', cursor: quest.estado === 'completada' ? 'default' : 'pointer',
+                                           border: sub.completado ? '1px solid #10B981' : '1px solid transparent'
+                                       }}>
                                       <div style={{width:'20px', height:'20px', borderRadius:'4px', border:'2px solid var(--secondary)', display:'flex', alignItems:'center', justifyContent:'center', background: sub.completado ? 'var(--secondary)' : 'transparent'}}>{sub.completado && <span style={{color:'black', fontSize:'0.8rem'}}>✓</span>}</div>
                                       <span style={{color: sub.completado ? 'white' : 'var(--text-muted)', textDecoration: sub.completado ? 'line-through' : 'none'}}>{sub.texto}</span>
                                   </div>
@@ -375,6 +471,105 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   return (
     <div style={{textAlign: 'left', paddingBottom: '50px'}}>
       
+      {/* MODAL OBJETIVO PERSONAL */}
+      {showObjetivoModal && (
+          <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', zIndex:9999, background:'rgba(0,0,0,0.95)', padding:'20px', overflowY:'auto'}}>
+              <div style={{maxWidth:'600px', margin:'0 auto', marginTop:'50px'}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px'}}>
+                      <h2 style={{fontFamily:'Rajdhani', color:'var(--primary)', fontSize:'2rem'}}>🎯 OBJETIVO PROPIO</h2>
+                      <button onClick={() => setShowObjetivoModal(false)} className="btn-link" style={{fontSize:'1.2rem', border:'1px solid white', borderRadius:'10px', padding:'5px 15px', color:'white'}}>CERRAR</button>
+                  </div>
+
+                  {/* DEFINICIÓN DE OBJETIVO (Si no está completo) */}
+                  <div style={{background:'var(--bg-card)', padding:'30px', borderRadius:'20px', border:'1px solid var(--primary)', marginBottom:'30px'}}>
+                      <h4 style={{marginTop:0, color:'var(--secondary)'}}>DEFINICIÓN</h4>
+                      <input 
+                        type="text" 
+                        value={miObjetivo} 
+                        onChange={(e) => setMiObjetivo(e.target.value)} 
+                        placeholder="Mi objetivo principal es..." 
+                        style={{width:'100%', padding:'15px', fontSize:'1.1rem', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', borderRadius:'10px', marginBottom:'15px'}}
+                      />
+                      
+                      <label style={{display:'block', color:'var(--text-muted)', marginBottom:'10px'}}>Acciones clave (Máx 4):</label>
+                      <div style={{display:'flex', gap:'10px', marginBottom:'15px'}}>
+                          <input 
+                            type="text" 
+                            value={tempAccion} 
+                            onChange={(e) => setTempAccion(e.target.value)}
+                            placeholder="Ej: Caminar 10 mins..."
+                            style={{flex:1, padding:'10px', borderRadius:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white'}}
+                          />
+                          <button onClick={agregarAccionLista} style={{background:'var(--secondary)', color:'black', border:'none', borderRadius:'8px', padding:'0 20px', fontWeight:'bold', cursor:'pointer'}}>+</button>
+                      </div>
+                      
+                      {misAcciones.length > 0 && (
+                          <div style={{display:'flex', flexWrap:'wrap', gap:'10px', marginBottom:'20px'}}>
+                              {misAcciones.map((acc, idx) => (
+                                  <div key={idx} style={{background:'rgba(255,255,255,0.1)', padding:'5px 10px', borderRadius:'20px', fontSize:'0.9rem', color:'white', display:'flex', alignItems:'center', gap:'5px'}}>
+                                      {acc} <span onClick={() => eliminarAccionLista(idx)} style={{color:'#EF4444', cursor:'pointer', fontWeight:'bold'}}>×</span>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
+
+                      <button onClick={guardarDefinicionObjetivo} style={{background:'transparent', border:'1px solid var(--primary)', color:'var(--primary)', padding:'10px 20px', borderRadius:'10px', cursor:'pointer', width:'100%'}}>ACTUALIZAR PLAN</button>
+                  </div>
+
+                  {miObjetivo && (
+                      <div style={{animation:'fadeIn 0.5s'}}>
+                          <h3 style={{color:'white', fontFamily:'Rajdhani'}}>REFLEXIÓN DIARIA</h3>
+                          <div style={{background:'rgba(255,255,255,0.05)', padding:'20px', borderRadius:'15px', marginBottom:'30px'}}>
+                              <p style={{color:'var(--text-muted)', margin:'0 0 15px 0'}}>¿Qué acciones realizaste hoy?</p>
+                              
+                              {misAcciones.length > 0 && (
+                                  <div style={{display:'flex', flexDirection:'column', gap:'10px', marginBottom:'20px'}}>
+                                      {misAcciones.map((acc, idx) => (
+                                          <div key={idx} onClick={() => toggleCheckAccion(acc)} style={{display:'flex', alignItems:'center', gap:'10px', padding:'10px', borderRadius:'8px', background: accionesCheck.includes(acc) ? 'rgba(16, 185, 129, 0.2)' : 'rgba(0,0,0,0.3)', border: accionesCheck.includes(acc) ? '1px solid #10B981' : '1px solid transparent', cursor:'pointer'}}>
+                                              <div style={{width:'20px', height:'20px', borderRadius:'4px', border:'2px solid var(--secondary)', display:'flex', justifyContent:'center', alignItems:'center'}}>
+                                                  {accionesCheck.includes(acc) && <span style={{color:'var(--secondary)', fontSize:'0.8rem'}}>✓</span>}
+                                              </div>
+                                              <span style={{color:'white'}}>{acc}</span>
+                                          </div>
+                                      ))}
+                                  </div>
+                              )}
+
+                              <p style={{color:'var(--text-muted)', margin:'0 0 10px 0'}}>Valoración del día:</p>
+                              <div style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
+                                  <button onClick={() => setValoracionDia('lejos')} style={{flex:1, padding:'15px', borderRadius:'10px', border: valoracionDia==='lejos'?'2px solid #EF4444':'1px solid gray', background: valoracionDia==='lejos'?'rgba(239,68,68,0.2)':'transparent', color:'white', cursor:'pointer'}}>⛔ ME ALEJÉ</button>
+                                  <button onClick={() => setValoracionDia('neutro')} style={{flex:1, padding:'15px', borderRadius:'10px', border: valoracionDia==='neutro'?'2px solid gray':'1px solid gray', background: valoracionDia==='neutro'?'rgba(255,255,255,0.1)':'transparent', color:'white', cursor:'pointer'}}>😐 NEUTRO</button>
+                                  <button onClick={() => setValoracionDia('cerca')} style={{flex:1, padding:'15px', borderRadius:'10px', border: valoracionDia==='cerca'?'2px solid #10B981':'1px solid gray', background: valoracionDia==='cerca'?'rgba(16,185,129,0.2)':'transparent', color:'white', cursor:'pointer'}}>🚀 ME ACERQUÉ</button>
+                              </div>
+
+                              <textarea 
+                                value={nuevaReflexion}
+                                onChange={(e) => setNuevaReflexion(e.target.value)}
+                                placeholder="Reflexión abierta (opcional)..."
+                                style={{width:'100%', height:'80px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', padding:'15px', borderRadius:'10px', fontFamily:'inherit', marginBottom:'15px'}}
+                              />
+                              <button onClick={guardarReflexionObjetivo} className="btn-primary" style={{width:'100%'}}>REGISTRAR DÍA</button>
+                          </div>
+
+                          <h3 style={{color:'var(--text-muted)', fontFamily:'Rajdhani'}}>HISTORIAL</h3>
+                          <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                              {historialReflexiones.map((h:any, i) => (
+                                  <div key={i} style={{background:'rgba(255,255,255,0.03)', padding:'15px', borderRadius:'10px', borderLeft: h.valoracion==='cerca'?'4px solid #10B981':(h.valoracion==='lejos'?'4px solid #EF4444':'4px solid gray')}}>
+                                      <div style={{fontSize:'0.8rem', color:'gray', marginBottom:'5px'}}>{h.createdAt?.seconds ? new Date(h.createdAt.seconds * 1000).toLocaleDateString() : "Hoy"}</div>
+                                      <div style={{color:'white', marginBottom:'5px'}}>{h.reflexion}</div>
+                                      {/* Mostrar acciones completadas ese día */}
+                                      {h.accionesCompletadas && h.accionesCompletadas.length > 0 && (
+                                          <div style={{fontSize:'0.8rem', color:'#10B981'}}>✅ {h.accionesCompletadas.join(", ")}</div>
+                                      )}
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+              </div>
+          </div>
+      )}
+
       {/* MODAL LEVEL UP */}
       {levelUpModal && (
         <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', zIndex:10000, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column'}} onClick={() => setLevelUpModal(null)}>
@@ -399,20 +594,20 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
           </div>
       )}
 
-      {/* MODAL HÁBITOS FULL (DATA PAD DE PROTOCOLOS) */}
+      {/* MODAL HÁBITOS FULL (DATA PAD) */}
       {showAllHabits && (
           <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', zIndex:9990, background:'rgba(10, 10, 20, 0.98)', backdropFilter:'blur(10px)', padding:'30px', overflowY:'auto'}}>
               <div style={{maxWidth:'800px', margin:'0 auto'}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'40px', borderBottom:'1px solid var(--primary)', paddingBottom:'20px'}}>
-                      <div><h2 style={{fontFamily:'Rajdhani', color:'var(--primary)', fontSize:'2.5rem', margin:0}}>PROTOCOLOS DIARIOS</h2><p style={{color:'var(--text-muted)', margin:0}}>Listado completo de rutinas de mantenimiento.</p></div>
+                      <div><h2 style={{fontFamily:'Rajdhani', color:'var(--primary)', fontSize:'2.5rem', margin:0}}>PROTOCOLOS DIARIOS</h2><p style={{color:'var(--text-muted)', margin:0}}>Listado completo de rutinas.</p></div>
                       <button onClick={() => setShowAllHabits(false)} className="btn-link" style={{fontSize:'1.2rem', color:'white', border:'1px solid white', padding:'10px 20px', borderRadius:'10px'}}>CERRAR</button>
                   </div>
-                  {misHabitos.length === 0 ? <div style={{textAlign:'center', padding:'50px', color:'gray'}}>Sin protocolos activos.</div> : <div style={{display:'grid', gap:'20px', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))'}}>{misHabitos.map(h => renderHabitCard(h))}</div>}
+                  {misHabitos.length === 0 ? <div style={{textAlign:'center', padding:'50px', color:'gray'}}>Sin protocolos.</div> : <div style={{display:'grid', gap:'20px', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))'}}>{misHabitos.map(h => renderHabitCard(h))}</div>}
               </div>
           </div>
       )}
 
-      {/* MODAL EDITOR NOTA & AVATAR & RECURSOS (Omitido visualmente, igual que antes) */}
+      {/* MODAL EDITOR NOTA & AVATAR & RECURSOS (Omitido visualmente igual) */}
        {editingNote && (
           <div style={{position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:10000, background:'rgba(0,0,0,0.8)', backdropFilter:'blur(5px)', display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'}}>
               <div style={{background: 'var(--bg-card)', border: '1px solid var(--secondary)', borderRadius: '20px', padding: '25px', width:'100%', maxWidth:'400px'}}>
@@ -496,10 +691,30 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
           )}
       </div>
 
+      {/* TARJETA OBJETIVO PERSONAL (NUEVO DISEÑO CON IMAGEN) */}
+      <div 
+        onClick={() => setShowObjetivoModal(true)}
+        style={{
+            marginBottom:'30px', background:'var(--bg-card)', 
+            border:'1px solid var(--secondary)', borderRadius:'20px', padding:'20px', 
+            cursor:'pointer', display:'flex', alignItems:'center', gap:'20px',
+            boxShadow:'0 0 15px rgba(236, 72, 153, 0.1)', transition:'transform 0.2s'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}
+        title="Objetivo Propio"
+      >
+          <img src="/desarrollo.png" style={{width:'60px', height:'60px', objectFit:'contain', filter:'drop-shadow(0 0 5px #EC4899)'}} />
+          <div>
+              <h3 style={{margin:0, color:'#EC4899', fontFamily:'Rajdhani', fontSize:'1.5rem'}}>OBJETIVO PROPIO</h3>
+              <p style={{margin:0, color:'var(--text-muted)', fontSize:'0.9rem'}}>Define tu meta y registra tu avance diario.</p>
+          </div>
+      </div>
+
       {/* COFRE SEMANAL */}
       <WeeklyChest habitos={misHabitos} userUid={userUid} psicologoId={psicologoId} userData={userData} />
 
-      {/* --- SECCIÓN PROTOCOLOS DIARIOS (HÁBITOS) --- */}
+      {/* --- PROTOCOLOS DIARIOS (HÁBITOS) --- */}
       <div style={{marginBottom:'30px'}}>
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
                <h3 style={{color:'white', fontFamily:'Rajdhani', margin:0, fontSize:'1.5rem', textTransform:'uppercase'}}>PROTOCOLOS DIARIOS</h3>
