@@ -31,7 +31,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [recompensas, setRecompensas] = useState<string[]>([]);
 
-  // FORMULARIO QUESTS (NUEVO)
+  // FORMULARIO QUESTS
   const [questTitulo, setQuestTitulo] = useState("");
   const [questDesc, setQuestDesc] = useState("");
   const [questDif, setQuestDif] = useState<'facil'|'media'|'dificil'>('media');
@@ -53,12 +53,10 @@ export function PanelPsicologo({ userData, userUid }: any) {
   useEffect(() => {
     if (!pacienteSeleccionado) { setHabitosPaciente([]); setMisionesPaciente([]); return; }
     
-    // Cargar Hábitos
     const unsubHabitos = onSnapshot(query(collection(db, "users", pacienteSeleccionado.id, "habitos")), (snap) => {
         setHabitosPaciente(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Cargar Misiones (Quests)
     const unsubMisiones = onSnapshot(query(collection(db, "users", pacienteSeleccionado.id, "misiones")), (snap) => {
         setMisionesPaciente(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -82,7 +80,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
               fechaVencimiento: questFecha, subObjetivos: questSubs,
               estado: 'activa', createdAt: new Date()
           });
-          // Reset
           setQuestTitulo(""); setQuestDesc(""); setQuestSubs([]); setQuestFecha("");
           alert("Misión asignada correctamente.");
       } catch (e) { console.error(e); }
@@ -97,6 +94,12 @@ export function PanelPsicologo({ userData, userUid }: any) {
       if(!confirm(`¿Registrar asistencia de ${pacienteSeleccionado.displayName}?\n\n+1 NEXO otorgado.`)) return;
       await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), { nexo: increment(1), xp: increment(500) });
       alert("Asistencia registrada.");
+  };
+
+  // --- FUNCIÓN RECUPERADA (ESTABA FALTANDO) ---
+  const toggleRecompensa = (tipo: string) => {
+    if (recompensas.includes(tipo)) setRecompensas(recompensas.filter(r => r !== tipo));
+    else setRecompensas([...recompensas, tipo]);
   };
 
   const guardarHabito = async () => {
@@ -124,7 +127,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
     if(confirm("⚠️ ¿ELIMINAR TOTALMENTE?")) await deleteDoc(doc(db, "users", pacienteSeleccionado.id, "habitos", id));
   };
   
-  // Helpers
   const contarDias = (reg: any) => Object.values(reg || {}).filter(v => v === true).length;
   const tieneInteraccion = (habito: any) => {
       const checks = contarDias(habito.registro) > 0;
@@ -132,7 +134,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
       return checks || comments;
   };
 
-  // Monitor de Balance (Sin cambios)
   const analizarBalance = () => {
       if (habitosPaciente.length === 0) return null;
       const activos = habitosPaciente.filter(h => h.estado !== 'archivado');
@@ -159,8 +160,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
   if (!pacienteSeleccionado) {
       return (
         <div style={{textAlign: 'left'}}>
-            {/* ... HEADER Y LISTA IGUAL QUE ANTES (Omitido para ahorrar espacio, copia el bloque anterior si lo borraste) ... */}
-            {/* Solo pego el bloque grid para referencia */}
              <div style={{background: 'var(--bg-card)', padding: '20px', borderRadius: '16px', marginBottom: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: 'var(--glass-border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                 <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
                     <img src="/psicologo.png" style={{width:'60px', height:'60px', borderRadius:'50%', border:'2px solid var(--primary)', objectFit:'cover'}} />
@@ -207,17 +206,15 @@ export function PanelPsicologo({ userData, userUid }: any) {
   return (
     <div style={{textAlign: 'left', animation: 'fadeIn 0.3s'}}>
       
-      {/* MODAL RECURSO (OMITIDO PARA BREVEDAD, IGUAL AL ANTERIOR) */}
       {selectedResource && (
            <div style={{position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999, background:'rgba(0,0,0,0.85)', backdropFilter:'blur(15px)', display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'}} onClick={() => setSelectedResource(null)}>
                <h2 style={{color:'white'}}>Recurso: {selectedResource.value}</h2>
            </div>
       )}
 
-      {/* HEADER NAVEGACIÓN */}
+      {/* HEADER */}
       <button onClick={() => setPacienteSeleccionado(null)} style={{background:'none', border:'none', color:'var(--text-muted)', fontSize:'1rem', cursor:'pointer', marginBottom:'20px', display:'flex', alignItems:'center', gap:'5px'}}>⬅ VOLVER</button>
 
-      {/* FICHA JUGADOR */}
       <div style={{background: 'linear-gradient(90deg, rgba(15,23,42,0.8) 0%, rgba(30,41,59,0.8) 100%)', padding: '30px', borderRadius: '16px', marginBottom: '30px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap:'wrap', gap:'20px'}}>
           <div style={{display:'flex', alignItems:'center', gap:'20px'}}>
               <div style={{width:'100px', height:'100px', borderRadius:'50%', overflow:'hidden', boxShadow:'0 0 20px var(--primary)', border: '2px solid var(--primary)', background: 'black'}}>
@@ -239,7 +236,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
           {showHabits && (
             <>
-                {/* FORMULARIO HÁBITOS */}
+                {/* FORMULARIO */}
                 <div style={{background: 'var(--bg-card)', padding: '20px', borderRadius: '16px', marginBottom: '20px', border: editingId ? '2px solid var(--primary)' : 'var(--glass-border)'}}>
                     <h4 style={{color: 'white', marginTop:0, fontSize:'1.1rem', marginBottom:'15px'}}>{editingId ? "✏️ EDITAR PROTOCOLO" : "NUEVO PROTOCOLO"}</h4>
                     <div style={{display:'flex', gap:'10px', flexWrap:'wrap'}}>
@@ -281,7 +278,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
                             animation: inactivo ? 'pulseBorder 2s infinite' : 'none'
                         }}>
                             {inactivo && <div style={{position:'absolute', top:-10, right:20, background:'#EF4444', color:'white', fontSize:'0.7rem', padding:'2px 8px', borderRadius:'4px', fontWeight:'bold'}}>SIN ACTIVIDAD</div>}
-                            
                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
                                 <div style={{flex: 1}}>
                                     <div style={{display:'flex', alignItems:'center', gap:'15px', marginBottom:'5px'}}>
@@ -294,17 +290,10 @@ export function PanelPsicologo({ userData, userUid }: any) {
                                         </div>
                                     </div>
                                     <div style={{fontSize:'0.9rem', color:'var(--text-muted)'}}>{diasLogrados}/{meta} Cumplidos</div>
-                                    
-                                    {/* VISOR DE COMENTARIOS (BITÁCORA) */}
                                     {diasConComentario.length > 0 && (
                                         <div style={{marginTop:'10px', background:'rgba(0,0,0,0.3)', padding:'10px', borderRadius:'8px'}}>
-                                            <div style={{fontSize:'0.7rem', color:'var(--secondary)', marginBottom:'5px', textTransform:'uppercase'}}>📝 Bitácora del Paciente:</div>
-                                            {diasConComentario.map(dia => (
-                                                <div key={dia} style={{fontSize:'0.85rem', color:'white', marginBottom:'3px'}}>
-                                                    <span style={{color:'var(--text-muted)', fontWeight:'bold'}}>{dia}: </span> 
-                                                    <i>"{comentarios[dia]}"</i>
-                                                </div>
-                                            ))}
+                                            <div style={{fontSize:'0.7rem', color:'var(--secondary)', marginBottom:'5px', textTransform:'uppercase'}}>📝 Bitácora:</div>
+                                            {diasConComentario.map(dia => (<div key={dia} style={{fontSize:'0.85rem', color:'white', marginBottom:'3px'}}><span style={{color:'var(--text-muted)', fontWeight:'bold'}}>{dia}: </span><i>"{comentarios[dia]}"</i></div>))}
                                         </div>
                                     )}
                                 </div>
