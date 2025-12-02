@@ -53,7 +53,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
       nombreReal: "", telefono: "", fechaNacimiento: "", contactoEmergencia: "", diagnostico: "", medicacion: ""
   });
   const [nuevaNota, setNuevaNota] = useState("");
-  const [fechaNota, setFechaNota] = useState(new Date().toISOString().split('T')[0]); 
+  const [fechaNota, setFechaNota] = useState(new Date().toISOString().split('T')[0]); // Fecha de hoy por defecto
   
   const [selectedResource, setSelectedResource] = useState<any>(null);
 
@@ -105,6 +105,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
       return edad + " años";
   };
 
+  // --- FUNCIONES: NOTAS CLÍNICAS ---
   const guardarNota = async () => {
       if(!nuevaNota.trim()) return;
       const fechaSeleccionada = new Date(fechaNota);
@@ -192,27 +193,34 @@ export function PanelPsicologo({ userData, userUid }: any) {
       if (stats.vitalidad === 0) faltantes.push("INTEGRIDAD");
       if (stats.sabiduria === 0) faltantes.push("I+D");
       if (stats.vinculacion === 0) faltantes.push("VINCULACIÓN");
+      
       if (faltantes.length > 0) return <div style={{background:'rgba(245,158,11,0.1)', border:'1px solid #F59E0B', color:'#F59E0B', padding:'15px', borderRadius:'12px', marginBottom:'20px', fontSize:'1rem'}}>⚠️ <strong>Balance:</strong> Faltan actividades de <b>{faltantes.join(", ")}</b>.</div>;
       return null;
   };
 
   // --- RENDERIZADO ---
 
+  // VISTA 1: BUSCADOR DE PACIENTES (AUTOCOMPLETE)
   if (!pacienteSeleccionado) {
       const hayBusqueda = busqueda.trim().length > 0;
       const filtrados = hayBusqueda ? pacientes.filter(p => p.displayName.toLowerCase().includes(busqueda.toLowerCase())) : [];
 
       return (
         <div style={{textAlign: 'left', maxWidth:'800px', margin:'0 auto'}}>
+            {/* HEADER */}
             <div style={{background: 'var(--bg-card)', padding: '30px', borderRadius: '20px', marginBottom: '30px', border: 'var(--glass-border)', textAlign:'center', boxShadow:'0 10px 40px rgba(0,0,0,0.5)'}}>
                 <img src="/psicologo.png" style={{width:'80px', height:'80px', borderRadius:'50%', border:'3px solid var(--primary)', objectFit:'cover', marginBottom:'15px'}} />
-                <h3 style={{margin:0, color: 'var(--primary)', fontFamily:'Rajdhani', fontSize:'2rem', letterSpacing:'2px'}}>CENTRO DE MANDO</h3>
-                <p style={{margin:'5px 0 0 0', color:'var(--text-muted)'}}>Código de Vinculación: <strong style={{color:'white', fontSize:'1.2rem'}}>{userData.codigoVinculacion}</strong></p>
+                <h3 style={{margin:0, color: '#F8FAFC', fontFamily:'Rajdhani', fontSize:'2rem', letterSpacing:'2px'}}>CENTRO DE MANDO</h3>
+                <p style={{margin:'5px 0 0 0', color:'#94A3B8'}}>Código de Vinculación: <strong style={{color:'#E2E8F0', fontSize:'1.2rem'}}>{userData.codigoVinculacion}</strong></p>
             </div>
+
+            {/* BUSCADOR */}
             <div style={{position:'relative', marginBottom:'30px'}}>
-                <input type="text" placeholder="Escribe el nombre del paciente para iniciar conexión..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{width:'100%', padding:'20px 20px 20px 50px', borderRadius:'15px', background:'rgba(30, 41, 59, 0.8)', border:'1px solid rgba(255,255,255,0.1)', color:'white', fontSize:'1.2rem', boxShadow:'0 4px 20px rgba(0,0,0,0.3)', outline:'none'}} />
+                <input type="text" placeholder="Escribe el nombre del paciente para iniciar conexión..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{width:'100%', padding:'20px 20px 20px 50px', borderRadius:'15px', background:'rgba(30, 41, 59, 0.8)', border:'1px solid rgba(255,255,255,0.1)', color:'#E2E8F0', fontSize:'1.2rem', boxShadow:'0 4px 20px rgba(0,0,0,0.3)', outline:'none'}} />
                 <span style={{position:'absolute', left:'20px', top:'50%', transform:'translateY(-50%)', fontSize:'1.5rem'}}>🔍</span>
             </div>
+            
+            {/* RESULTADOS */}
             {hayBusqueda && (
                 <div style={{display: 'grid', gap: '15px', animation:'fadeIn 0.3s'}}>
                     {filtrados.length === 0 ? <p style={{textAlign:'center', color:'gray'}}>No se encontraron expedientes.</p> : filtrados.map(p => {
@@ -223,7 +231,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                                 <div style={{width:'60px', height:'60px', borderRadius:'50%', overflow:'hidden', background:'black', border:'2px solid var(--secondary)'}}>
                                     {etapa.imagen.endsWith('.mp4') ? <video src={etapa.imagen} autoPlay loop muted playsInline style={{width:'100%', height:'100%', objectFit:'cover'}} /> : <img src={etapa.imagen} style={{width:'100%', height:'100%', objectFit:'cover'}} />}
                                 </div>
-                                <div><div style={{fontWeight:'bold', color:'white', fontSize:'1.2rem'}}>{p.displayName}</div><div style={{fontSize:'0.9rem', color:'var(--text-muted)'}}>{p.email}</div></div>
+                                <div><div style={{fontWeight:'bold', color:'#E2E8F0', fontSize:'1.2rem'}}>{p.displayName}</div><div style={{fontSize:'0.9rem', color:'#94A3B8'}}>{p.email}</div></div>
                                 <div style={{marginLeft:'auto'}}>
                                     {p.isAuthorized ? <span style={{color:'#10B981', background:'rgba(16, 185, 129, 0.1)', padding:'5px 10px', borderRadius:'5px', fontSize:'0.8rem', fontWeight:'bold'}}>CONECTADO</span> : <button onClick={(e) => { e.stopPropagation(); updateDoc(doc(db, "users", userUid, "pacientes", p.id), { isAuthorized: true }); }} style={{padding:'8px 15px', background:'var(--primary)', border:'none', borderRadius:'5px', cursor:'pointer', fontWeight:'bold'}}>AUTORIZAR</button>}
                                 </div>
@@ -232,11 +240,12 @@ export function PanelPsicologo({ userData, userUid }: any) {
                     })}
                 </div>
             )}
-            {!hayBusqueda && <div style={{textAlign:'center', marginTop:'50px', opacity:0.5}}><p>Esperando entrada de datos...</p></div>}
+            {!hayBusqueda && <div style={{textAlign:'center', marginTop:'50px', opacity:0.5, color:'#94A3B8'}}><p>Esperando entrada de datos...</p></div>}
         </div>
       );
   }
 
+  // --- VISTA 2: PANEL DE CONTROL ---
   const paciente = datosLive || pacienteSeleccionado;
   const avatarDef = PERSONAJES[paciente.avatarKey as PersonajeTipo] || PERSONAJES['atlas'];
   const nivel = obtenerNivel(paciente.xp || 0);
@@ -248,100 +257,110 @@ export function PanelPsicologo({ userData, userUid }: any) {
        {selectedResource && (
            <div style={{position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999, background:'rgba(0,0,0,0.85)', backdropFilter:'blur(15px)', display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'}} onClick={() => setSelectedResource(null)}>
                <div style={{background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', padding: '40px', textAlign: 'center', maxWidth: '600px', width:'100%', boxShadow: '0 0 80px rgba(6, 182, 212, 0.15)', display: 'flex', flexDirection: 'column', alignItems: 'center'}} onClick={e => e.stopPropagation()}>
-                  <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : (selectedResource.type === 'nexo' ? '#8B5CF6' : 'white'), fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2.5rem', marginBottom:'30px', textShadow: '0 0 20px rgba(0,0,0,0.5)'}}>{STATS_CONFIG[selectedResource.type].label}</h2>
+                  <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : (selectedResource.type === 'nexo' ? '#8B5CF6' : '#E2E8F0'), fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2.5rem', marginBottom:'30px', textShadow: '0 0 20px rgba(0,0,0,0.5)'}}>{STATS_CONFIG[selectedResource.type].label}</h2>
                   <img src={STATS_CONFIG[selectedResource.type].icon} style={{width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '40vh', marginBottom: '30px', filter: 'drop-shadow(0 0 30px rgba(255,255,255,0.1))'}} />
-                  <div style={{fontSize: '4rem', fontWeight: 'bold', color: 'white', marginBottom: '10px', lineHeight: 1}}>{Math.floor(selectedResource.value)}<span style={{fontSize:'1.5rem', color:'var(--text-muted)'}}>.{Math.round((selectedResource.value - Math.floor(selectedResource.value))*100)}</span></div>
+                  <div style={{fontSize: '4rem', fontWeight: 'bold', color: '#E2E8F0', marginBottom: '10px', lineHeight: 1}}>{Math.floor(selectedResource.value)}<span style={{fontSize:'1.5rem', color:'#94A3B8'}}>.{Math.round((selectedResource.value - Math.floor(selectedResource.value))*100)}</span></div>
                   <button onClick={() => setSelectedResource(null)} className="btn-primary" style={{marginTop: '40px', width: '200px', fontSize: '1.1rem'}}>ENTENDIDO</button>
               </div>
            </div>
       )}
 
-       <button onClick={() => setPacienteSeleccionado(null)} style={{background:'none', border:'none', color:'var(--text-muted)', marginBottom:'20px', cursor:'pointer'}}>⬅ VOLVER</button>
+       {/* HEADER */}
+       <button onClick={() => setPacienteSeleccionado(null)} style={{background:'none', border:'none', color:'#94A3B8', marginBottom:'20px', cursor:'pointer'}}>⬅ VOLVER</button>
        
        <div style={{background: 'linear-gradient(90deg, #0f172a 0%, #1e293b 100%)', padding: '20px', borderRadius: '16px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.1)', display:'flex', alignItems:'center', gap:'20px'}}>
            <div style={{width:'80px', height:'80px', borderRadius:'50%', overflow:'hidden', border:'2px solid var(--primary)'}}>
                {etapa.imagen.endsWith('.mp4') ? <video src={etapa.imagen} autoPlay loop muted playsInline style={{width:'100%', height:'100%', objectFit:'cover'}} /> : <img src={etapa.imagen} style={{width:'100%', height:'100%', objectFit:'cover'}} />}
            </div>
-           <div><h1 style={{margin:0, fontFamily:'Rajdhani', color:'white'}}>{perfilReal.nombreReal || paciente.displayName}</h1><div style={{color:'var(--primary)', fontSize:'0.9rem'}}>NIVEL {nivel} • {etapa.nombreClase}</div></div>
+           <div><h1 style={{margin:0, fontFamily:'Rajdhani', color:'#F8FAFC'}}>{perfilReal.nombreReal || paciente.displayName}</h1><div style={{color:'var(--primary)', fontSize:'0.9rem'}}>NIVEL {nivel} • {etapa.nombreClase}</div></div>
            <div style={{marginLeft:'auto'}}><button onClick={registrarAsistencia} style={{background:'rgba(139, 92, 246, 0.2)', color:'#8B5CF6', border:'1px solid #8B5CF6', padding:'10px 20px', borderRadius:'8px', cursor:'pointer'}}>+ ASISTENCIA</button></div>
        </div>
 
        <div style={{display:'flex', gap:'10px', marginBottom:'20px', borderBottom:'1px solid rgba(255,255,255,0.1)', paddingBottom:'10px'}}>
-           <button onClick={() => setActiveTab('tablero')} style={{padding:'10px 20px', background: activeTab === 'tablero' ? 'var(--primary)' : 'transparent', color: activeTab === 'tablero' ? 'black' : 'white', border:'none', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', display:'flex', gap:'5px', alignItems:'center'}}><IconDashboard/> TABLERO</button>
-           <button onClick={() => setActiveTab('expediente')} style={{padding:'10px 20px', background: activeTab === 'expediente' ? 'var(--secondary)' : 'transparent', color: activeTab === 'expediente' ? 'black' : 'white', border:'none', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', display:'flex', gap:'5px', alignItems:'center'}}><IconFile/> EXPEDIENTE</button>
-           <button onClick={() => setActiveTab('notas')} style={{padding:'10px 20px', background: activeTab === 'notas' ? '#8B5CF6' : 'transparent', color: activeTab === 'notas' ? 'white' : 'white', border: activeTab === 'notas' ? 'none' : '1px solid transparent', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', display:'flex', gap:'5px', alignItems:'center'}}><IconNotes/> NOTAS</button>
-           <button onClick={() => setActiveTab('gestion')} style={{padding:'10px 20px', background: activeTab === 'gestion' ? '#F59E0B' : 'transparent', color: activeTab === 'gestion' ? 'black' : 'white', border:'none', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', display:'flex', gap:'5px', alignItems:'center'}}><IconTools/> GESTIÓN</button>
+           <button onClick={() => setActiveTab('tablero')} style={{padding:'10px 20px', background: activeTab === 'tablero' ? 'var(--primary)' : 'transparent', color: activeTab === 'tablero' ? 'black' : '#E2E8F0', border:'none', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', display:'flex', gap:'5px', alignItems:'center'}}><IconDashboard/> TABLERO</button>
+           <button onClick={() => setActiveTab('expediente')} style={{padding:'10px 20px', background: activeTab === 'expediente' ? 'var(--secondary)' : 'transparent', color: activeTab === 'expediente' ? 'black' : '#E2E8F0', border:'none', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', display:'flex', gap:'5px', alignItems:'center'}}><IconFile/> EXPEDIENTE</button>
+           <button onClick={() => setActiveTab('notas')} style={{padding:'10px 20px', background: activeTab === 'notas' ? '#8B5CF6' : 'transparent', color: activeTab === 'notas' ? 'white' : '#E2E8F0', border: activeTab === 'notas' ? 'none' : '1px solid transparent', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', display:'flex', gap:'5px', alignItems:'center'}}><IconNotes/> NOTAS</button>
+           <button onClick={() => setActiveTab('gestion')} style={{padding:'10px 20px', background: activeTab === 'gestion' ? '#F59E0B' : 'transparent', color: activeTab === 'gestion' ? 'black' : '#E2E8F0', border:'none', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', display:'flex', gap:'5px', alignItems:'center'}}><IconTools/> GESTIÓN</button>
        </div>
 
+       {/* 1. TABLERO */}
        {activeTab === 'tablero' && (
            <div style={{animation:'fadeIn 0.3s'}}>
                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(100px, 1fr))', gap:'15px', marginBottom:'30px'}}>
-                   <div onClick={() => setSelectedResource({type:'gold', value: paciente.gold})} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(245, 158, 11, 0.3)', cursor:'pointer'}}><img src={STATS_CONFIG.gold.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} /><div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#F59E0B'}}>{paciente.gold || 0}</div><div style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>FONDOS</div></div>
-                   <div onClick={() => setSelectedResource({type:'nexo', value: paciente.nexo})} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(139, 92, 246, 0.3)', cursor:'pointer'}}><img src={STATS_CONFIG.nexo.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} /><div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#8B5CF6'}}>{paciente.nexo || 0}</div><div style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>NEXOS</div></div>
-                   {['vitalidad','sabiduria','vinculacion'].map(stat => (<div key={stat} onClick={() => setSelectedResource({type:stat, value: paciente.stats?.[stat]})} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', cursor:'pointer'}}>{/* @ts-ignore */}<img src={STATS_CONFIG[stat].icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} />{/* @ts-ignore */}<div style={{fontSize:'1.5rem', fontWeight:'bold', color:'white'}}>{Number(paciente.stats?.[stat] || 0).toFixed(1)}</div>{/* @ts-ignore */}<div style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>{STATS_CONFIG[stat].label}</div></div>))}
+                   <div onClick={() => setSelectedResource({type:'gold', value: paciente.gold})} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(245, 158, 11, 0.3)', cursor:'pointer'}}><img src={STATS_CONFIG.gold.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} /><div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#F59E0B'}}>{paciente.gold || 0}</div><div style={{fontSize:'0.7rem', color:'#94A3B8'}}>FONDOS</div></div>
+                   <div onClick={() => setSelectedResource({type:'nexo', value: paciente.nexo})} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(139, 92, 246, 0.3)', cursor:'pointer'}}><img src={STATS_CONFIG.nexo.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} /><div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#8B5CF6'}}>{paciente.nexo || 0}</div><div style={{fontSize:'0.7rem', color:'#94A3B8'}}>NEXOS</div></div>
+                   {['vitalidad','sabiduria','vinculacion'].map(stat => (<div key={stat} onClick={() => setSelectedResource({type:stat, value: paciente.stats?.[stat]})} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', cursor:'pointer'}}>{/* @ts-ignore */}<img src={STATS_CONFIG[stat].icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} />{/* @ts-ignore */}<div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#E2E8F0'}}>{Number(paciente.stats?.[stat] || 0).toFixed(1)}</div>{/* @ts-ignore */}<div style={{fontSize:'0.7rem', color:'#94A3B8'}}>{STATS_CONFIG[stat].label}</div></div>))}
                </div>
                {analizarBalance()}
-               <h3 style={{marginTop:0, color:'white', fontFamily:'Rajdhani'}}>RESUMEN DE HOY</h3>
-               <div style={{padding:'20px', background:'rgba(255,255,255,0.05)', borderRadius:'12px'}}><div style={{fontSize:'1.1rem', color:'white'}}>Protocolos completados: <strong style={{color:'var(--primary)'}}>{habitos.filter(h => { const today = new Date().getDay(); const dias = ["D","L","M","X","J","V","S"]; return h.registro?.[dias[today]] === true; }).length}</strong> / {habitos.filter(h => h.estado !== 'archivado').length}</div></div>
+               <h3 style={{marginTop:0, color:'#F8FAFC', fontFamily:'Rajdhani'}}>RESUMEN DE HOY</h3>
+               <div style={{padding:'20px', background:'rgba(255,255,255,0.05)', borderRadius:'12px'}}><div style={{fontSize:'1.1rem', color:'#E2E8F0'}}>Protocolos completados: <strong style={{color:'var(--primary)'}}>{habitos.filter(h => { const today = new Date().getDay(); const dias = ["D","L","M","X","J","V","S"]; return h.registro?.[dias[today]] === true; }).length}</strong> / {habitos.filter(h => h.estado !== 'archivado').length}</div></div>
            </div>
        )}
 
+       {/* 2. EXPEDIENTE */}
        {activeTab === 'expediente' && (
            <div style={{animation:'fadeIn 0.3s', maxWidth:'600px'}}>
                <h3 style={{color:'var(--secondary)', borderBottom:'1px solid var(--secondary)', paddingBottom:'10px', marginTop:0}}>DATOS PERSONALES (PRIVADO)</h3>
                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'15px'}}>
-                   <div><label style={{fontSize:'0.8rem', color:'gray'}}>Nombre Real</label><input type="text" value={perfilReal.nombreReal} onChange={e => setPerfilReal({...perfilReal, nombreReal: e.target.value})} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', borderRadius:'8px'}} /></div>
-                   <div><label style={{fontSize:'0.8rem', color:'gray'}}>Teléfono</label><input type="text" value={perfilReal.telefono} onChange={e => setPerfilReal({...perfilReal, telefono: e.target.value})} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', borderRadius:'8px'}} /></div>
-                   <div><label style={{fontSize:'0.8rem', color:'gray'}}>Fecha Nac. ({calcularEdad(perfilReal.fechaNacimiento)})</label><input type="date" value={perfilReal.fechaNacimiento} onChange={e => setPerfilReal({...perfilReal, fechaNacimiento: e.target.value})} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', borderRadius:'8px'}} /></div>
-                   <div><label style={{fontSize:'0.8rem', color:'#EF4444'}}>Contacto Emergencia</label><input type="text" value={perfilReal.contactoEmergencia} onChange={e => setPerfilReal({...perfilReal, contactoEmergencia: e.target.value})} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid #EF4444', color:'white', borderRadius:'8px'}} /></div>
+                   <div><label style={{fontSize:'0.8rem', color:'#94A3B8'}}>Nombre Real</label><input type="text" value={perfilReal.nombreReal} onChange={e => setPerfilReal({...perfilReal, nombreReal: e.target.value})} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', borderRadius:'8px'}} /></div>
+                   <div><label style={{fontSize:'0.8rem', color:'#94A3B8'}}>Teléfono</label><input type="text" value={perfilReal.telefono} onChange={e => setPerfilReal({...perfilReal, telefono: e.target.value})} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', borderRadius:'8px'}} /></div>
+                   <div><label style={{fontSize:'0.8rem', color:'#94A3B8'}}>Fecha Nac. ({calcularEdad(perfilReal.fechaNacimiento)})</label><input type="date" value={perfilReal.fechaNacimiento} onChange={e => setPerfilReal({...perfilReal, fechaNacimiento: e.target.value})} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', borderRadius:'8px'}} /></div>
+                   <div><label style={{fontSize:'0.8rem', color:'#EF4444'}}>Contacto Emergencia</label><input type="text" value={perfilReal.contactoEmergencia} onChange={e => setPerfilReal({...perfilReal, contactoEmergencia: e.target.value})} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid #EF4444', color:'#E2E8F0', borderRadius:'8px'}} /></div>
                </div>
                <h3 style={{color:'var(--secondary)', borderBottom:'1px solid var(--secondary)', paddingBottom:'10px'}}>CLÍNICA</h3>
-               <div style={{marginBottom:'15px'}}><label style={{fontSize:'0.8rem', color:'gray'}}>Diagnóstico</label><input type="text" value={perfilReal.diagnostico} onChange={e => setPerfilReal({...perfilReal, diagnostico: e.target.value})} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', borderRadius:'8px'}} /></div>
-               <div style={{marginBottom:'20px'}}><label style={{fontSize:'0.8rem', color:'gray'}}>Medicación</label><textarea value={perfilReal.medicacion} onChange={e => setPerfilReal({...perfilReal, medicacion: e.target.value})} style={{width:'100%', height:'80px', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', borderRadius:'8px'}} /></div>
+               <div style={{marginBottom:'15px'}}><label style={{fontSize:'0.8rem', color:'#94A3B8'}}>Diagnóstico</label><input type="text" value={perfilReal.diagnostico} onChange={e => setPerfilReal({...perfilReal, diagnostico: e.target.value})} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', borderRadius:'8px'}} /></div>
+               <div style={{marginBottom:'20px'}}><label style={{fontSize:'0.8rem', color:'#94A3B8'}}>Medicación</label><textarea value={perfilReal.medicacion} onChange={e => setPerfilReal({...perfilReal, medicacion: e.target.value})} style={{width:'100%', height:'80px', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', borderRadius:'8px'}} /></div>
                <button onClick={guardarExpediente} className="btn-primary">GUARDAR CAMBIOS</button>
            </div>
        )}
 
+       {/* 3. NOTAS (VERTICAL) */}
        {activeTab === 'notas' && (
            <div style={{animation:'fadeIn 0.3s'}}>
                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-                   <h3 style={{margin:0, color:'white'}}>BITÁCORA DE SESIÓN</h3>
-                   <button onClick={exportarHistorial} style={{background:'none', border:'1px solid white', color:'white', padding:'8px 15px', borderRadius:'8px', cursor:'pointer', fontSize:'0.8rem', display:'flex', gap:'5px', alignItems:'center'}}><IconDownload/> EXPORTAR TXT</button>
+                   <h3 style={{margin:0, color:'#F8FAFC'}}>BITÁCORA DE SESIÓN</h3>
+                   <button onClick={exportarHistorial} style={{background:'none', border:'1px solid #E2E8F0', color:'#E2E8F0', padding:'8px 15px', borderRadius:'8px', cursor:'pointer', fontSize:'0.8rem', display:'flex', gap:'5px', alignItems:'center'}}><IconDownload/> EXPORTAR TXT</button>
                </div>
+               
                <div style={{background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '16px', marginBottom: '30px', border: '1px solid rgba(255,255,255,0.1)'}}>
                     <h4 style={{margin:'0 0 15px 0', color:'var(--secondary)'}}>NUEVA ENTRADA</h4>
-                    <div style={{marginBottom:'15px'}}><label style={{fontSize:'0.8rem', color:'gray', display:'block', marginBottom:'5px'}}>FECHA DEL REGISTRO</label><input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{padding:'10px', borderRadius:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', fontFamily:'inherit'}} /></div>
-                    <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)} placeholder="Escribe la evolución clínica, observaciones o bitácora de sesión..." style={{width:'100%', height:'120px', padding:'15px', borderRadius:'10px', background:'rgba(0,0,0,0.3)', color:'white', border:'1px solid rgba(255,255,255,0.2)', fontFamily:'inherit', marginBottom:'15px', resize:'vertical'}} />
+                    <div style={{marginBottom:'15px'}}>
+                        <label style={{fontSize:'0.8rem', color:'#94A3B8', display:'block', marginBottom:'5px'}}>FECHA DEL REGISTRO</label>
+                        <input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{padding:'10px', borderRadius:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', fontFamily:'inherit'}} />
+                    </div>
+                    <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)} placeholder="Escribe la evolución clínica, observaciones o bitácora de sesión..." style={{width:'100%', height:'120px', padding:'15px', borderRadius:'10px', background:'rgba(0,0,0,0.3)', color:'#E2E8F0', border:'1px solid rgba(255,255,255,0.2)', fontFamily:'inherit', marginBottom:'15px', resize:'vertical'}} />
                     <div style={{textAlign:'right'}}><button onClick={guardarNota} className="btn-primary" style={{padding:'10px 30px'}}>GUARDAR NOTA</button></div>
                </div>
+
                <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
                    {notasClinicas.map(nota => (
                        <div key={nota.id} style={{background:'rgba(255,255,255,0.03)', padding:'20px', borderRadius:'12px', borderLeft:'4px solid #8B5CF6'}}>
-                           <div style={{fontSize:'0.75rem', color:'var(--text-muted)', marginBottom:'5px'}}>{nota.createdAt?.seconds ? new Date(nota.createdAt.seconds * 1000).toLocaleDateString() : "Sin fecha"}</div>
-                           <div style={{whiteSpace:'pre-wrap', lineHeight:'1.5', color:'white'}}>{nota.contenido}</div>
+                           <div style={{fontSize:'0.75rem', color:'#94A3B8', marginBottom:'5px'}}>{nota.createdAt?.seconds ? new Date(nota.createdAt.seconds * 1000).toLocaleDateString() : "Sin fecha"}</div>
+                           <div style={{whiteSpace:'pre-wrap', lineHeight:'1.5', color:'#E2E8F0'}}>{nota.contenido}</div>
                        </div>
                    ))}
                </div>
            </div>
        )}
 
+       {/* 4. GESTIÓN */}
        {activeTab === 'gestion' && (
            <div style={{animation:'fadeIn 0.3s'}}>
                <div style={{marginBottom:'40px'}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', background:'var(--bg-card)', padding:'15px', borderRadius:'12px', cursor:'pointer'}} onClick={() => setShowHabits(!showHabits)}>
-                      <h3 style={{margin:0, fontFamily:'Rajdhani', color:'white', fontSize:'1.5rem'}}>PROTOCOLOS DIARIOS ({habitos.length})</h3>
+                      <h3 style={{margin:0, fontFamily:'Rajdhani', color:'#F8FAFC', fontSize:'1.5rem'}}>PROTOCOLOS DIARIOS ({habitos.length})</h3>
                       {showHabits ? <IconArrowUp /> : <IconArrowDown />}
                   </div>
                   {showHabits && (
                       <>
                         <div style={{background: 'var(--bg-card)', padding: '20px', borderRadius: '16px', marginBottom: '20px', border: editingHabitId ? '2px solid var(--primary)' : 'var(--glass-border)'}}>
                             <div style={{display:'flex', gap:'10px', marginBottom:'10px'}}>
-                                <input type="text" value={tituloHabito} onChange={(e) => setTituloHabito(e.target.value)} placeholder="Descripción..." style={{flex:2, background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', padding:'10px', borderRadius:'8px'}} />
-                                <select value={frecuenciaMeta} onChange={(e) => setFrecuenciaMeta(Number(e.target.value))} style={{flex:1, padding: '10px', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid rgba(255,255,255,0.2)'}}>{[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} día/sem</option>)}</select>
+                                <input type="text" value={tituloHabito} onChange={(e) => setTituloHabito(e.target.value)} placeholder="Descripción..." style={{flex:2, background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', padding:'10px', borderRadius:'8px'}} />
+                                <select value={frecuenciaMeta} onChange={(e) => setFrecuenciaMeta(Number(e.target.value))} style={{flex:1, padding: '10px', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', color:'#E2E8F0', border: '1px solid rgba(255,255,255,0.2)'}}>{[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} día/sem</option>)}</select>
                             </div>
                             <div style={{display:'flex', gap:'10px', marginTop:'10px'}}>
                                 {['vitalidad','sabiduria','vinculacion'].map(t => (
-                                    <button key={t} onClick={() => toggleRecompensa(t)} style={{flex:1, padding:'8px', borderRadius:'8px', background: recompensas.includes(t)?'rgba(255,255,255,0.2)':'transparent', border: recompensas.includes(t)?'1px solid white':'1px solid gray', color:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'5px'}}>
+                                    <button key={t} onClick={() => toggleRecompensa(t)} style={{flex:1, padding:'8px', borderRadius:'8px', background: recompensas.includes(t)?'rgba(255,255,255,0.2)':'transparent', border: recompensas.includes(t)?'1px solid white':'1px solid gray', color:'#E2E8F0', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'5px'}}>
                                         {/* @ts-ignore */}
                                         <img src={STATS_CONFIG[t].icon} width="20" height="20" />
                                         {/* @ts-ignore */}
@@ -367,7 +386,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                                     {inactivo && <div style={{position:'absolute', top:-8, right:10, background:'#EF4444', fontSize:'0.6rem', padding:'2px 6px', borderRadius:'4px', fontWeight:'bold', color:'white'}}>SIN ACTIVIDAD</div>}
                                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
                                         <div>
-                                            <div style={{fontWeight:'bold', color:'white'}}>{h.titulo} <span style={{fontSize:'0.8rem', color:'gray'}}>({h.frecuenciaMeta}/sem)</span></div>
+                                            <div style={{fontWeight:'bold', color:'#E2E8F0'}}>{h.titulo} <span style={{fontSize:'0.8rem', color:'#94A3B8'}}>({h.frecuenciaMeta}/sem)</span></div>
                                             <div style={{display:'flex', gap:'5px', marginTop:'5px'}}>
                                                 {h.recompensas?.map((r: string) => (
                                                     // @ts-ignore
@@ -377,17 +396,16 @@ export function PanelPsicologo({ userData, userUid }: any) {
                                         </div>
                                         <div style={{display:'flex', gap:'10px'}}>
                                             <button onClick={() => cargarParaEditar(h)} style={{background:'none', border:'none', color:'var(--primary)', cursor:'pointer'}}><IconEdit/></button>
-                                            <button onClick={() => archivarHabito(h.id, h.estado)} style={{background:'none', border:'none', color:'white', cursor:'pointer'}}><IconMedal/></button>
+                                            <button onClick={() => archivarHabito(h.id, h.estado)} style={{background:'none', border:'none', color:'#E2E8F0', cursor:'pointer'}}><IconMedal/></button>
                                             <button onClick={() => eliminarHabito(h.id)} style={{background:'none', border:'none', color:'#EF4444', cursor:'pointer'}}><IconTrash/></button>
                                         </div>
                                     </div>
-                                    {/* SECCIÓN DE BITÁCORA CORREGIDA */}
                                     {h.comentariosSemana && Object.keys(h.comentariosSemana).length > 0 && (
                                         <div style={{marginTop:'10px', background:'rgba(0,0,0,0.4)', padding:'10px', borderRadius:'8px'}}>
                                             <div style={{fontSize:'0.7rem', color:'#FBBF24', marginBottom:'5px', fontWeight:'bold'}}>📝 BITÁCORA DEL PACIENTE:</div>
                                             {Object.entries(h.comentariosSemana).map(([dia, nota]:any) => (
-                                                <div key={dia} style={{fontSize:'0.85rem', color:'white', marginBottom:'4px'}}>
-                                                    <span style={{color:'var(--text-muted)', fontWeight:'bold'}}>{dia}: </span> 
+                                                <div key={dia} style={{fontSize:'0.85rem', color:'#E2E8F0', marginBottom:'4px'}}>
+                                                    <span style={{color:'#94A3B8', fontWeight:'bold'}}>{dia}: </span> 
                                                     <span style={{fontStyle:'italic'}}>"{nota}"</span>
                                                 </div>
                                             ))}
@@ -403,7 +421,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
                <div style={{marginBottom:'40px'}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', background:'var(--bg-card)', padding:'15px', borderRadius:'12px', cursor:'pointer'}} onClick={() => setShowQuests(!showQuests)}>
-                      <h3 style={{margin:0, fontFamily:'Rajdhani', color:'white', fontSize:'1.5rem'}}>MISIONES ESPECIALES ({misiones.length})</h3>
+                      <h3 style={{margin:0, fontFamily:'Rajdhani', color:'#F8FAFC', fontSize:'1.5rem'}}>MISIONES ESPECIALES ({misiones.length})</h3>
                       {showQuests ? <IconArrowUp /> : <IconArrowDown />}
                   </div>
                   {showQuests && (
@@ -411,26 +429,26 @@ export function PanelPsicologo({ userData, userUid }: any) {
                         <div style={{background: 'var(--bg-card)', padding: '20px', borderRadius: '16px', marginBottom: '20px', border: '1px solid var(--secondary)'}}>
                              <h4 style={{color: 'var(--secondary)', marginTop:0, fontSize:'1.1rem', marginBottom:'15px'}}>⚔️ NUEVA MISIÓN</h4>
                              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px'}}>
-                                 <input type="text" value={questTitulo} onChange={e => setQuestTitulo(e.target.value)} placeholder="Título..." style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', padding:'10px', borderRadius:'8px'}} />
-                                 <input type="date" value={questFecha} onChange={e => setQuestFecha(e.target.value)} style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', padding:'10px', borderRadius:'8px'}} />
+                                 <input type="text" value={questTitulo} onChange={e => setQuestTitulo(e.target.value)} placeholder="Título..." style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', padding:'10px', borderRadius:'8px'}} />
+                                 <input type="date" value={questFecha} onChange={e => setQuestFecha(e.target.value)} style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', padding:'10px', borderRadius:'8px'}} />
                              </div>
-                             <textarea value={questDesc} onChange={e => setQuestDesc(e.target.value)} placeholder="Descripción..." style={{width:'100%', height:'60px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', padding:'10px', borderRadius:'8px', fontFamily:'inherit', marginBottom:'10px'}} />
+                             <textarea value={questDesc} onChange={e => setQuestDesc(e.target.value)} placeholder="Descripción..." style={{width:'100%', height:'60px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', padding:'10px', borderRadius:'8px', fontFamily:'inherit', marginBottom:'10px'}} />
                              <div style={{marginBottom:'10px'}}>
                                  <div style={{display:'flex', gap:'10px'}}>
-                                     <input type="text" value={newSubText} onChange={e => setNewSubText(e.target.value)} placeholder="Sub-objetivo..." style={{flex:1, background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', padding:'8px', borderRadius:'8px'}} />
+                                     <input type="text" value={newSubText} onChange={e => setNewSubText(e.target.value)} placeholder="Sub-objetivo..." style={{flex:1, background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', padding:'8px', borderRadius:'8px'}} />
                                      <button onClick={addSub} style={{background:'var(--secondary)', border:'none', padding:'0 15px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold'}}>+</button>
                                  </div>
-                                 {questSubs.map(s => <div key={s.id} style={{fontSize:'0.8rem', color:'gray', marginTop:'5px'}}>• {s.texto} <span onClick={() => setQuestSubs(questSubs.filter(x=>x.id!==s.id))} style={{color:'#EF4444', cursor:'pointer', marginLeft:'5px'}}>x</span></div>)}
+                                 {questSubs.map(s => <div key={s.id} style={{fontSize:'0.8rem', color:'#94A3B8', marginTop:'5px'}}>• {s.texto} <span onClick={() => setQuestSubs(questSubs.filter(x=>x.id!==s.id))} style={{color:'#EF4444', cursor:'pointer', marginLeft:'5px'}}>x</span></div>)}
                              </div>
                              <div style={{display:'flex', justifyContent:'space-between'}}>
-                                 <select value={questDif} onChange={(e:any) => setQuestDif(e.target.value)} style={{background:'black', color:'white', padding:'10px', borderRadius:'8px'}}><option value="facil">Fácil</option><option value="media">Media</option><option value="dificil">Difícil</option></select>
+                                 <select value={questDif} onChange={(e:any) => setQuestDif(e.target.value)} style={{background:'black', color:'#E2E8F0', padding:'10px', borderRadius:'8px'}}><option value="facil">Fácil</option><option value="media">Media</option><option value="dificil">Difícil</option></select>
                                  <button onClick={guardarQuest} className="btn-primary">ASIGNAR</button>
                              </div>
                         </div>
                         <div style={{display:'grid', gap:'10px'}}>
                             {misiones.map(q => (
                                 <div key={q.id} style={{background:'rgba(255,255,255,0.03)', padding:'15px', borderRadius:'12px', borderLeft:`4px solid ${q.dificultad==='facil'?'#10B981':q.dificultad==='media'?'#F59E0B':'#EF4444'}`, display:'flex', justifyContent:'space-between'}}>
-                                    <div><div style={{color:'white', fontWeight:'bold'}}>{q.titulo}</div><div style={{fontSize:'0.8rem', color:'gray'}}>{q.estado.toUpperCase()} | Vence: {q.fechaVencimiento}</div></div>
+                                    <div><div style={{color:'#E2E8F0', fontWeight:'bold'}}>{q.titulo}</div><div style={{fontSize:'0.8rem', color:'#94A3B8'}}>{q.estado.toUpperCase()} | Vence: {q.fechaVencimiento}</div></div>
                                     <button onClick={async() => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id,"misiones",q.id)); }} style={{background:'none', border:'none', color:'#EF4444', cursor:'pointer'}}><IconTrash/></button>
                                 </div>
                             ))}
