@@ -7,7 +7,7 @@ import { WeeklyChest } from '../components/WeeklyChest';
 // --- CONFIGURACIÓN DE BALANCE ---
 const FACTOR_GANANCIA_STAT = 0.15;
 
-// --- TIPOS DE MISIONES ---
+// --- TIPOS ---
 type DificultadQuest = 'facil' | 'media' | 'dificil';
 interface SubObjetivo { id: number; texto: string; completado: boolean; }
 interface Quest {
@@ -77,8 +77,9 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   const [levelUpModal, setLevelUpModal] = useState<{show: boolean, newLevel: number} | null>(null);
   const [editingNote, setEditingNote] = useState<{ habitoId: string, dia: string, texto: string } | null>(null);
   
-  // UI MISIONES
+  // UI DESPLEGABLE
   const [showAllQuests, setShowAllQuests] = useState(false);
+  const [showAllHabits, setShowAllHabits] = useState(false);
   const [expandedQuestId, setExpandedQuestId] = useState<string | null>(null);
 
   const prevLevelRef = useRef(1);
@@ -104,7 +105,6 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     const unsubHabits = onSnapshot(query(collection(db, "users", psicologoId, "pacientes", userUid, "habitos")), (snapshot) => {
       const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // Lógica de cierre de semana (Archivado)
       lista.forEach(async (h: any) => {
         if (h.ultimaSemanaRegistrada && h.ultimaSemanaRegistrada !== currentWeekId) {
             const registroAArchivar = h.registro || { L: false, M: false, X: false, J: false, V: false, S: false, D: false };
@@ -122,17 +122,13 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
       calcularGamificacion(lista, userData); 
     });
 
-    // 3. MISIONES (QUESTS)
+    // 3. MISIONES
     const unsubMisiones = onSnapshot(query(collection(db, "users", psicologoId, "pacientes", userUid, "misiones")), (snapshot) => {
         const quests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Quest));
-        
-        // Chequeo de vencimiento automático
         quests.forEach(async (q) => {
             if (q.estado === 'activa' && q.fechaVencimiento) {
                 const hoy = new Date().toISOString().split('T')[0];
-                if (hoy > q.fechaVencimiento) {
-                    await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid, "misiones", q.id), { estado: 'vencida' });
-                }
+                if (hoy > q.fechaVencimiento) await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid, "misiones", q.id), { estado: 'vencida' });
             }
         });
         setMisMisiones(quests);
@@ -141,7 +137,7 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     return () => { unsubUser(); unsubHabits(); unsubMisiones(); };
   }, [userUid, psicologoId, currentWeekId]);
 
-  // --- CÁLCULO DE GAMIFICACIÓN ---
+  // --- CÁLCULO ---
   const calcularGamificacion = async (habitos: any[], currentProfileData: any) => {
     let totalVitalidad = avatarDef.statsBase.vitalidad;
     let totalSabiduria = avatarDef.statsBase.sabiduria;
@@ -149,7 +145,6 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     let totalGold = 0;
     let totalXP = 0;
 
-    // Sumar Hábitos
     const sumarSemana = (registro: any, recompensas: string[]) => {
         const checks = Object.values(registro || {}).filter(v => v === true).length;
         totalXP += (checks * XP_POR_HABITO);
@@ -170,7 +165,6 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
         }
     });
 
-    // Sumar Bonos (Cofres + Quests Completadas que ya se sumaron a bonusXP/Gold en el acto)
     const bonos = currentProfileData.bonusStats || {};
     totalXP += (currentProfileData.bonusXP || 0);
     totalGold += (currentProfileData.bonusGold || 0);
@@ -178,11 +172,9 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     totalSabiduria += (bonos.sabiduria || 0);
     totalVinculacion += (bonos.vinculacion || 0);
 
-    // Restar Gastos
     const gastos = currentProfileData.goldSpent || 0;
     totalGold = Math.max(0, totalGold - gastos);
 
-    // Nivel
     const nuevoNivel = obtenerNivel(totalXP);
     const meta = obtenerMetaSiguiente(nuevoNivel);
 
@@ -202,7 +194,6 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     setNivel(nuevoNivel);
     setXpSiguiente(meta);
 
-    // Guardado silencioso
     if (currentProfileData.xp !== totalXP || currentProfileData.gold !== totalGold) {
         try {
             await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid), {
@@ -217,7 +208,6 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
     }
   };
 
-  // --- ACCIONES DE HÁBITOS ---
   const toggleDia = async (habitoId: string, dia: string, estadoActual: boolean) => {
     if (semanaOffset !== 0) return alert("Solo lectura");
     try {
@@ -235,25 +225,20 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
       } catch (e) { console.error(e); }
   };
 
-  // --- LÓGICA DE QUESTS ---
   const toggleSubObjetivo = async (quest: Quest, subId: number) => {
       if (quest.estado !== 'activa') return;
-      
       const nuevosSub = quest.subObjetivos.map(s => s.id === subId ? { ...s, completado: !s.completado } : s);
       const todosCompletos = nuevosSub.every(s => s.completado);
 
       try {
           const questRef = doc(db, "users", psicologoId, "pacientes", userUid, "misiones", quest.id);
-          
           if (todosCompletos) {
-              // COMPLETAR MISIÓN: Asignar recompensas
               const premios = { xp: 50, gold: 25, nexo: 0 };
               if (quest.dificultad === 'media') { premios.xp = 150; premios.gold = 75; }
               if (quest.dificultad === 'dificil') { premios.xp = 500; premios.gold = 200; premios.nexo = 1; }
 
               await updateDoc(questRef, { subObjetivos: nuevosSub, estado: 'completada' });
               
-              // Actualizar perfil con recompensa
               const userRef = doc(db, "users", psicologoId, "pacientes", userUid);
               const updates: any = {
                   bonusXP: increment(premios.xp),
@@ -261,18 +246,15 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
                   misionesCompletadas: arrayUnion(quest.id)
               };
               if (premios.nexo > 0) updates['nexo'] = increment(premios.nexo);
-              
               await updateDoc(userRef, updates);
               alert(`¡MISIÓN COMPLETADA!\n\nHas ganado:\n+${premios.xp} XP\n+${premios.gold} Fondos${premios.nexo > 0 ? '\n+1 NEXO' : ''}`);
-
           } else {
-              // Solo actualizar checks
               await updateDoc(questRef, { subObjetivos: nuevosSub });
           }
       } catch (e) { console.error(e); }
   };
 
-  // Helpers UI
+  // Helpers
   const contarDias = (registro: any) => (!registro ? 0 : Object.values(registro).filter(val => val === true).length);
   const getDatosVisualizacion = (habito: any) => {
       if (semanaOffset === 0) return { registro: habito.registro, comentarios: habito.comentariosSemana || {} };
@@ -283,15 +265,12 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
   const xpTecho = xpSiguiente;
   const porcentajeNivel = Math.min(100, Math.max(0, Math.round(((puntosTotales - xpPiso) / (xpTecho - xpPiso)) * 100)));
 
-  // Renderizador de Misiones
+  // RENDER MISION CARD
   const renderQuestCard = (quest: Quest, isModal: boolean = false) => {
       const activeSubs = quest.subObjetivos.filter(s => s.completado).length;
       const totalSubs = quest.subObjetivos.length;
-      const progress = (activeSubs / totalSubs) * 100;
-      const isExpanded = expandedQuestId === quest.id || isModal; // En modal siempre expandido
+      const isExpanded = expandedQuestId === quest.id || isModal;
       const colorDificultad = quest.dificultad === 'facil' ? '#10B981' : (quest.dificultad === 'media' ? '#F59E0B' : '#EF4444');
-      
-      // Glow si está activa y no hay progreso hoy (Simulado: Si tiene 0 subs completados)
       const needsAction = quest.estado === 'activa' && activeSubs === 0;
 
       return (
@@ -322,41 +301,75 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
                       
                       {quest.estado === 'vencida' ? (
                           <div style={{background:'rgba(239, 68, 68, 0.2)', padding:'10px', borderRadius:'8px', color:'#FCA5A5', fontSize:'0.9rem', fontStyle:'italic'}}>
-                              ⚠️ Sincronización Fallida. Oportunidad perdida, pero podemos volver a intentar con más herramientas.
+                              ⚠️ Sincronización Fallida. Oportunidad perdida.
                           </div>
                       ) : (
                           <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
                               {quest.subObjetivos.map(sub => (
-                                  <div key={sub.id} 
-                                       onClick={() => toggleSubObjetivo(quest, sub.id)}
-                                       style={{
-                                           display:'flex', alignItems:'center', gap:'10px', padding:'10px', 
-                                           background: sub.completado ? 'rgba(16, 185, 129, 0.2)' : 'rgba(0,0,0,0.3)',
-                                           borderRadius:'8px', cursor: quest.estado === 'completada' ? 'default' : 'pointer',
-                                           border: sub.completado ? '1px solid #10B981' : '1px solid transparent'
-                                       }}>
-                                      <div style={{
-                                          width:'20px', height:'20px', borderRadius:'4px', border:'2px solid var(--secondary)',
-                                          display:'flex', alignItems:'center', justifyContent:'center',
-                                          background: sub.completado ? 'var(--secondary)' : 'transparent'
-                                      }}>
-                                          {sub.completado && <span style={{color:'black', fontSize:'0.8rem'}}>✓</span>}
-                                      </div>
+                                  <div key={sub.id} onClick={() => toggleSubObjetivo(quest, sub.id)} style={{display:'flex', alignItems:'center', gap:'10px', padding:'10px', background: sub.completado ? 'rgba(16, 185, 129, 0.2)' : 'rgba(0,0,0,0.3)', borderRadius:'8px', cursor: quest.estado === 'completada' ? 'default' : 'pointer', border: sub.completado ? '1px solid #10B981' : '1px solid transparent'}}>
+                                      <div style={{width:'20px', height:'20px', borderRadius:'4px', border:'2px solid var(--secondary)', display:'flex', alignItems:'center', justifyContent:'center', background: sub.completado ? 'var(--secondary)' : 'transparent'}}>{sub.completado && <span style={{color:'black', fontSize:'0.8rem'}}>✓</span>}</div>
                                       <span style={{color: sub.completado ? 'white' : 'var(--text-muted)', textDecoration: sub.completado ? 'line-through' : 'none'}}>{sub.texto}</span>
                                   </div>
                               ))}
                           </div>
                       )}
-
-                      {quest.estado === 'activa' && (
-                          <div style={{marginTop:'15px', fontSize:'0.8rem', color:'var(--text-muted)', textAlign:'right'}}>
-                              Vence: {quest.fechaVencimiento}
-                          </div>
-                      )}
+                      {quest.estado === 'activa' && <div style={{marginTop:'15px', fontSize:'0.8rem', color:'var(--text-muted)', textAlign:'right'}}>Vence: {quest.fechaVencimiento}</div>}
                   </div>
               )}
           </div>
       );
+  };
+
+  // RENDER HABIT CARD
+  const renderHabitCard = (habito: any) => {
+    const { registro, comentarios } = getDatosVisualizacion(habito);
+    const diasLogrados = contarDias(registro);
+    const meta = habito.frecuenciaMeta || 7;
+    const porcentaje = Math.min(100, Math.round((diasLogrados / meta) * 100));
+    const logrado = diasLogrados >= meta;
+    const esHistorial = semanaOffset < 0;
+    
+    return (
+      <div key={habito.id} style={{background: 'var(--bg-card)', padding: '25px', borderRadius: '20px', border: logrado ? '1px solid var(--secondary)' : '1px solid rgba(255,255,255,0.05)', position: 'relative', overflow: 'hidden', opacity: esHistorial ? 0.7 : 1}}>
+        {logrado && <div style={{position: 'absolute', top: 0, right: 0, background: 'var(--secondary)', color: 'black', padding: '5px 15px', borderBottomLeftRadius: '15px', fontSize: '0.7rem', fontWeight: 'bold'}}>¡META CUMPLIDA!</div>}
+        
+        <div style={{marginBottom: '20px'}}>
+          <h4 style={{margin: '0 0 5px 0', fontSize: '1.3rem', color: 'white', letterSpacing:'0.5px'}}>{habito.titulo}</h4>
+          <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+              <span style={{background: 'rgba(255,255,255,0.1)', color: 'white', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold'}}>{meta} días/sem</span>
+              <div style={{display:'flex', gap:'5px', marginLeft:'auto'}}>
+                  <img src={STATS_CONFIG.gold.icon} style={{width:'25px'}} />
+                  {habito.recompensas?.map((r: string) => <img key={r} src={STATS_CONFIG[r as StatTipo]?.icon} style={{width:'25px'}} />)}
+              </div>
+          </div>
+        </div>
+        
+        <div style={{display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '12px'}}>
+          {diasSemana.map(dia => {
+              const tieneComentario = comentarios && comentarios[dia];
+              return (
+                  <div key={dia} style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', position:'relative'}}>
+                      <span style={{fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold'}}>{dia}</span>
+                      <div style={{position:'relative'}}>
+                          <button onClick={() => toggleDia(habito.id, dia, registro[dia])} style={{width: '32px', height: '32px', borderRadius: '8px', border: 'none', cursor: esHistorial ? 'not-allowed' : 'pointer', background: registro[dia] ? 'var(--secondary)' : 'rgba(255,255,255,0.05)', color: registro[dia] ? 'black' : 'white', boxShadow: registro[dia] ? '0 0 10px var(--secondary)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease', transform: registro[dia] ? 'scale(1.1)' : 'scale(1)'}}>{registro[dia] && "✓"}</button>
+                          <div onClick={(e) => { e.stopPropagation(); setEditingNote({ habitoId: habito.id, dia, texto: tieneComentario || "" }); }}
+                               style={{
+                                   position:'absolute', bottom:-10, right:-10, width:'20px', height:'20px', borderRadius:'50%',
+                                   background: tieneComentario ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
+                                   color: tieneComentario ? 'black' : 'rgba(255,255,255,0.5)',
+                                   border: '1px solid rgba(0,0,0,0.5)', fontSize:'0.7rem', display:'flex', alignItems:'center', justifyContent:'center',
+                                   cursor:'pointer', boxShadow: tieneComentario ? '0 0 5px var(--primary)' : 'none', zIndex:2
+                               }}>✎</div>
+                      </div>
+                  </div>
+              );
+          })}
+        </div>
+        <div style={{marginTop: '15px', display: 'flex', alignItems: 'center', gap: '10px'}}>
+          <div style={{flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px'}}><div style={{width: `${porcentaje}%`, background: 'var(--primary)', height: '100%', borderRadius: '2px', transition: 'width 0.5s', boxShadow: '0 0 5px var(--primary)'}}></div></div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -373,27 +386,62 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
         </div>
       )}
 
-      {/* MODAL MISIONES FULL */}
+      {/* MODAL MISIONES FULL (DATA PAD) */}
       {showAllQuests && (
-          <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', zIndex:9990, background:'rgba(0,0,0,0.95)', padding:'20px', overflowY:'auto'}}>
-              <div style={{maxWidth:'600px', margin:'0 auto'}}>
-                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px'}}>
-                      <h2 style={{fontFamily:'Rajdhani', color:'var(--secondary)', fontSize:'2rem'}}>PROTOCOLOS DE MISIÓN</h2>
-                      <button onClick={() => setShowAllQuests(false)} className="btn-link">CERRAR X</button>
+          <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', zIndex:9990, background:'rgba(10, 10, 20, 0.98)', backdropFilter:'blur(10px)', padding:'30px', overflowY:'auto'}}>
+              <div style={{maxWidth:'800px', margin:'0 auto'}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'40px', borderBottom:'1px solid var(--secondary)', paddingBottom:'20px'}}>
+                      <div><h2 style={{fontFamily:'Rajdhani', color:'var(--secondary)', fontSize:'2.5rem', margin:0}}>REGISTRO DE MISIONES</h2><p style={{color:'var(--text-muted)', margin:0}}>Historial de operaciones especiales.</p></div>
+                      <button onClick={() => setShowAllQuests(false)} className="btn-link" style={{fontSize:'1.2rem', color:'white', border:'1px solid white', padding:'10px 20px', borderRadius:'10px'}}>CERRAR</button>
                   </div>
-                  {misMisiones.length === 0 ? <p style={{color:'white'}}>No hay misiones asignadas.</p> : misMisiones.map(q => renderQuestCard(q, true))}
+                  {misMisiones.length === 0 ? <div style={{textAlign:'center', padding:'50px', color:'gray'}}>Sin registros.</div> : <div style={{display:'grid', gap:'20px'}}>{misMisiones.map(q => renderQuestCard(q, true))}</div>}
               </div>
           </div>
       )}
 
-      {/* MODAL EDITOR NOTA & AVATAR (Omitido visualmente, está en lógica igual al anterior) */}
-      {/* ... (Puedes copiar los modales de Avatar y Nota del código anterior si los necesitas, aquí están resumidos para ahorrar espacio si ya los tienes) ... */}
+      {/* MODAL HÁBITOS FULL (DATA PAD DE PROTOCOLOS) */}
+      {showAllHabits && (
+          <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', zIndex:9990, background:'rgba(10, 10, 20, 0.98)', backdropFilter:'blur(10px)', padding:'30px', overflowY:'auto'}}>
+              <div style={{maxWidth:'800px', margin:'0 auto'}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'40px', borderBottom:'1px solid var(--primary)', paddingBottom:'20px'}}>
+                      <div><h2 style={{fontFamily:'Rajdhani', color:'var(--primary)', fontSize:'2.5rem', margin:0}}>PROTOCOLOS DIARIOS</h2><p style={{color:'var(--text-muted)', margin:0}}>Listado completo de rutinas de mantenimiento.</p></div>
+                      <button onClick={() => setShowAllHabits(false)} className="btn-link" style={{fontSize:'1.2rem', color:'white', border:'1px solid white', padding:'10px 20px', borderRadius:'10px'}}>CERRAR</button>
+                  </div>
+                  {misHabitos.length === 0 ? <div style={{textAlign:'center', padding:'50px', color:'gray'}}>Sin protocolos activos.</div> : <div style={{display:'grid', gap:'20px', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))'}}>{misHabitos.map(h => renderHabitCard(h))}</div>}
+              </div>
+          </div>
+      )}
+
+      {/* MODAL EDITOR NOTA & AVATAR & RECURSOS (Omitido visualmente, igual que antes) */}
        {editingNote && (
           <div style={{position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:10000, background:'rgba(0,0,0,0.8)', backdropFilter:'blur(5px)', display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'}}>
               <div style={{background: 'var(--bg-card)', border: '1px solid var(--secondary)', borderRadius: '20px', padding: '25px', width:'100%', maxWidth:'400px'}}>
                   <h3 style={{color:'var(--secondary)', margin:'0 0 15px 0', fontFamily:'Rajdhani'}}>REFLEXIÓN</h3>
                   <textarea value={editingNote.texto} onChange={e => setEditingNote({...editingNote, texto: e.target.value})} style={{width:'100%', height:'100px', background:'rgba(0,0,0,0.3)', color:'white', padding:'10px', border:'1px solid rgba(255,255,255,0.2)'}} />
                   <div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button onClick={() => setEditingNote(null)} style={{flex:1, color:'white', background:'transparent', border:'1px solid white'}}>CANCELAR</button><button onClick={saveNote} className="btn-primary" style={{flex:1}}>GUARDAR</button></div>
+              </div>
+          </div>
+      )}
+       {viewAvatar && (
+          <div style={{position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999, background:'rgba(0,0,0,0.9)', backdropFilter:'blur(10px)', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', padding:'20px'}} onClick={() => setViewAvatar(false)}>
+              <div style={{width:'100%', maxWidth:'500px', background:'var(--bg-card)', border:'var(--glass-border)', borderRadius:'20px', padding:'20px', textAlign:'center', boxShadow:'0 0 50px rgba(6, 182, 212, 0.3)'}} onClick={e => e.stopPropagation()}>
+                  <h2 style={{color:'var(--primary)', fontFamily:'Rajdhani', textTransform:'uppercase', fontSize:'2rem', marginBottom:'10px'}}>{etapaVisual.nombreClase}</h2>
+                  <div style={{width:'100%', aspectRatio:'1/1', borderRadius:'15px', overflow:'hidden', border:'2px solid var(--primary)', marginBottom:'20px', background:'black'}}>
+                    <video src={etapaVisual.imagen} autoPlay loop muted playsInline style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                  </div>
+                  <p style={{color:'var(--secondary)', fontStyle:'italic', fontSize:'1.1rem', marginBottom:'15px'}}>"{etapaVisual.lema}"</p>
+                  <p style={{color:'var(--text-muted)'}}>{etapaVisual.descripcionVisual}</p>
+                  <button onClick={() => setViewAvatar(false)} className="btn-primary" style={{marginTop:'20px', width:'100%'}}>CERRAR</button>
+              </div>
+          </div>
+      )}
+      {selectedResource && (
+          <div style={{position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999, background:'rgba(0,0,0,0.85)', backdropFilter:'blur(15px)', display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'}} onClick={() => setSelectedResource(null)}>
+              <div style={{background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', padding: '40px', textAlign: 'center', maxWidth: '600px', width:'100%', boxShadow: '0 0 80px rgba(6, 182, 212, 0.15)', display: 'flex', flexDirection: 'column', alignItems: 'center'}} onClick={e => e.stopPropagation()}>
+                  <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : (selectedResource.type === 'nexo' ? '#8B5CF6' : 'white'), fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2.5rem', marginBottom:'30px', textShadow: '0 0 20px rgba(0,0,0,0.5)'}}>{STATS_CONFIG[selectedResource.type].label}</h2>
+                  <img src={STATS_CONFIG[selectedResource.type].icon} style={{width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '40vh', marginBottom: '30px', filter: 'drop-shadow(0 0 30px rgba(255,255,255,0.1))'}} />
+                  <div style={{fontSize: '4rem', fontWeight: 'bold', color: 'white', marginBottom: '10px', lineHeight: 1}}>{Math.floor(selectedResource.value)}<span style={{fontSize:'1.5rem', color:'var(--text-muted)'}}>.{Math.round((selectedResource.value - Math.floor(selectedResource.value))*100)}</span></div>
+                  <button onClick={() => setSelectedResource(null)} className="btn-primary" style={{marginTop: '40px', width: '200px', fontSize: '1.1rem'}}>ENTENDIDO</button>
               </div>
           </div>
       )}
@@ -432,11 +480,11 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
         </div>
       </div>
 
-      {/* --- SECCIÓN DESPLEGABLE DE MISIONES (NUEVO) --- */}
+      {/* --- SECCIÓN MISIONES --- */}
       <div style={{marginBottom:'30px'}}>
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
                <h3 style={{color:'white', fontFamily:'Rajdhani', margin:0, fontSize:'1.5rem'}}>MISIONES ACTIVAS</h3>
-               <button onClick={() => setShowAllQuests(true)} className="btn-link" style={{fontSize:'0.9rem'}}>VER TODAS</button>
+               <button onClick={() => setShowAllQuests(true)} className="btn-link" style={{fontSize:'0.9rem'}}>ABRIR DATA PAD</button>
           </div>
           
           {misMisiones.filter(q => q.estado === 'activa').length === 0 ? (
@@ -451,61 +499,24 @@ export function PanelPaciente({ userUid, psicologoId, userData }: any) {
       {/* COFRE SEMANAL */}
       <WeeklyChest habitos={misHabitos} userUid={userUid} psicologoId={psicologoId} userData={userData} />
 
-      {/* LISTA DE HÁBITOS (RUTINA) */}
-      <h3 style={{color:'white', fontFamily:'Rajdhani', fontSize:'1.5rem', marginBottom:'15px'}}>RUTINA DIARIA</h3>
-      <div style={{display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
-        {misHabitos.map(habito => {
-          if (habito.estado === 'archivado') return null;
-          const { registro, comentarios } = getDatosVisualizacion(habito);
-          const diasLogrados = contarDias(registro);
-          const meta = habito.frecuenciaMeta || 7;
-          const porcentaje = Math.min(100, Math.round((diasLogrados / meta) * 100));
-          const logrado = diasLogrados >= meta;
-          const esHistorial = semanaOffset < 0;
+      {/* --- SECCIÓN PROTOCOLOS DIARIOS (HÁBITOS) --- */}
+      <div style={{marginBottom:'30px'}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
+               <h3 style={{color:'white', fontFamily:'Rajdhani', margin:0, fontSize:'1.5rem', textTransform:'uppercase'}}>PROTOCOLOS DIARIOS</h3>
+               <button onClick={() => setShowAllHabits(true)} className="btn-link" style={{fontSize:'0.9rem'}}>VER TODOS</button>
+          </div>
           
-          return (
-            <div key={habito.id} style={{background: 'var(--bg-card)', padding: '25px', borderRadius: '20px', border: logrado ? '1px solid var(--secondary)' : '1px solid rgba(255,255,255,0.05)', position: 'relative', overflow: 'hidden', opacity: esHistorial ? 0.7 : 1}}>
-              {logrado && <div style={{position: 'absolute', top: 0, right: 0, background: 'var(--secondary)', color: 'black', padding: '5px 15px', borderBottomLeftRadius: '15px', fontSize: '0.7rem', fontWeight: 'bold'}}>¡META CUMPLIDA!</div>}
-              
-              <div style={{marginBottom: '20px'}}>
-                <h4 style={{margin: '0 0 5px 0', fontSize: '1.3rem', color: 'white', letterSpacing:'0.5px'}}>{habito.titulo}</h4>
-                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-                    <span style={{background: 'rgba(255,255,255,0.1)', color: 'white', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold'}}>{meta} días/sem</span>
-                    <div style={{display:'flex', gap:'5px', marginLeft:'auto'}}>
-                        <img src={STATS_CONFIG.gold.icon} style={{width:'25px'}} />
-                        {habito.recompensas?.map((r: string) => <img key={r} src={STATS_CONFIG[r as StatTipo]?.icon} style={{width:'25px'}} />)}
-                    </div>
-                </div>
+          <div style={{display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'}}>
+            {misHabitos.filter(h => h.estado !== 'archivado').slice(0, 3).map(habito => renderHabitCard(habito))}
+          </div>
+          
+          {misHabitos.filter(h => h.estado !== 'archivado').length > 3 && (
+              <div style={{textAlign:'center', marginTop:'15px'}}>
+                  <button onClick={() => setShowAllHabits(true)} style={{background:'rgba(255,255,255,0.1)', border:'none', color:'var(--text-muted)', padding:'10px 20px', borderRadius:'20px', cursor:'pointer'}}>+ {misHabitos.length - 3} Protocolos restantes...</button>
               </div>
-              
-              <div style={{display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '12px'}}>
-                {diasSemana.map(dia => {
-                    const tieneComentario = comentarios && comentarios[dia];
-                    return (
-                        <div key={dia} style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', position:'relative'}}>
-                            <span style={{fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold'}}>{dia}</span>
-                            <div style={{position:'relative'}}>
-                                <button onClick={() => toggleDia(habito.id, dia, registro[dia])} style={{width: '32px', height: '32px', borderRadius: '8px', border: 'none', cursor: esHistorial ? 'not-allowed' : 'pointer', background: registro[dia] ? 'var(--secondary)' : 'rgba(255,255,255,0.05)', color: registro[dia] ? 'black' : 'white', boxShadow: registro[dia] ? '0 0 10px var(--secondary)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease', transform: registro[dia] ? 'scale(1.1)' : 'scale(1)'}}>{registro[dia] && "✓"}</button>
-                                <div onClick={(e) => { e.stopPropagation(); setEditingNote({ habitoId: habito.id, dia, texto: tieneComentario || "" }); }}
-                                     style={{
-                                         position:'absolute', bottom:-10, right:-10, width:'20px', height:'20px', borderRadius:'50%',
-                                         background: tieneComentario ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
-                                         color: tieneComentario ? 'black' : 'rgba(255,255,255,0.5)',
-                                         border: '1px solid rgba(0,0,0,0.5)', fontSize:'0.7rem', display:'flex', alignItems:'center', justifyContent:'center',
-                                         cursor:'pointer', boxShadow: tieneComentario ? '0 0 5px var(--primary)' : 'none', zIndex:2
-                                     }}>✎</div>
-                            </div>
-                        </div>
-                    );
-                })}
-              </div>
-              <div style={{marginTop: '15px', display: 'flex', alignItems: 'center', gap: '10px'}}>
-                <div style={{flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px'}}><div style={{width: `${porcentaje}%`, background: 'var(--primary)', height: '100%', borderRadius: '2px', transition: 'width 0.5s', boxShadow: '0 0 5px var(--primary)'}}></div></div>
-              </div>
-            </div>
-          );
-        })}
+          )}
       </div>
+
     </div>
   );
 }
