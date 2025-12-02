@@ -106,11 +106,9 @@ export function PanelPsicologo({ userData, userUid }: any) {
     if (editingHabitId) await updateDoc(doc(col, editingHabitId), d); else await addDoc(col, {...d, estado:'activo', createdAt:new Date(), registro:{L:false,M:false,X:false,J:false,V:false,S:false,D:false}});
     setTituloHabito(""); setFrecuenciaMeta(7); setRecompensas([]); setEditingHabitId(null);
   };
-  
   const cargarParaEditar = (h: any) => { setTituloHabito(h.titulo); setFrecuenciaMeta(h.frecuenciaMeta); setRecompensas(h.recompensas || []); setEditingHabitId(h.id); };
   const cancelarEdicion = () => { setTituloHabito(""); setFrecuenciaMeta(7); setRecompensas([]); setEditingHabitId(null); };
   const addSub = () => { if(newSubText) { setQuestSubs([...questSubs, {id:Date.now(), texto:newSubText, completado:false}]); setNewSubText(""); } };
-  
   const analizarBalance = () => {
       if (habitos.length === 0) return null;
       const activos = habitos.filter(h => h.estado !== 'archivado');
@@ -328,7 +326,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                     <h4 style={{margin:'0 0 15px 0', color:'var(--secondary)'}}>NUEVA ENTRADA</h4>
                     <div style={{marginBottom:'15px'}}>
                         <label style={{fontSize:'0.8rem', color:'#94A3B8', display:'block', marginBottom:'5px'}}>FECHA DEL REGISTRO</label>
-                        <input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{padding:'10px', borderRadius:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(148, 163, 184, 0.2)', color:'#E2E8F0', fontFamily:'inherit'}} />
+                        <input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{padding:'10px', borderRadius:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', fontFamily:'inherit'}} />
                     </div>
                     <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)} placeholder="Escribe la evolución clínica, observaciones o bitácora de sesión..." style={{width:'100%', height:'120px', padding:'15px', borderRadius:'10px', background:'rgba(0,0,0,0.3)', color:'#E2E8F0', border:'1px solid rgba(255,255,255,0.2)', fontFamily:'inherit', marginBottom:'15px', resize:'vertical'}} />
                     <div style={{textAlign:'right'}}><button onClick={guardarNota} className="btn-primary" style={{padding:'10px 30px'}}>GUARDAR NOTA</button></div>
@@ -379,6 +377,22 @@ export function PanelPsicologo({ userData, userUid }: any) {
                                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
                                         <div>
                                             <div style={{fontWeight:'bold', color:'#E2E8F0'}}>{h.titulo} <span style={{fontSize:'0.8rem', color:'#94A3B8'}}>({h.frecuenciaMeta}/sem)</span></div>
+                                            
+                                            {/* FILA DE SEGUIMIENTO DIARIO (NUEVO) */}
+                                            <div style={{display: 'flex', gap: '5px', marginTop:'8px', marginBottom:'5px'}}>
+                                              {['L','M','X','J','V','S','D'].map(day => (
+                                                 <div key={day} style={{
+                                                    width:'25px', height:'25px', borderRadius:'6px',
+                                                    background: h.registro?.[day] ? 'var(--secondary)' : 'rgba(255,255,255,0.1)',
+                                                    color: h.registro?.[day] ? 'black' : 'gray',
+                                                    display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.7rem', fontWeight:'bold',
+                                                    border: h.registro?.[day] ? 'none' : '1px solid rgba(255,255,255,0.1)'
+                                                 }}>
+                                                    {day}
+                                                 </div>
+                                              ))}
+                                            </div>
+
                                             <div style={{display:'flex', gap:'5px', marginTop:'5px'}}>
                                                 {h.recompensas?.map((r: string) => (
                                                     // @ts-ignore
