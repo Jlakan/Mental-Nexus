@@ -18,14 +18,18 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
   const now = new Date();
   const dayOfWeek = now.getDay(); // 0 = Domingo, 1 = Lunes
   
-  // LÓGICA DE APERTURA: Solo Domingo (0) o Lunes (1)
-  const isOpeningDay = dayOfWeek === 0 || dayOfWeek === 1;
+  // ==============================================================================
+  // 🔴 MODO PRUEBAS ACTIVADO: 'true' fuerza que el cofre aparezca hoy (Martes)
+  // Para producción, cambia esta línea a: const isOpeningDay = dayOfWeek === 0 || dayOfWeek === 1;
+  const isOpeningDay = true; 
+  // ==============================================================================
 
-  // --- CORRECCIÓN DE FECHA ---
+  // --- LÓGICA DE FECHA (CON GRACIA DE LUNES) ---
   const getRewardWeekId = () => {
       const dateToCheck = new Date(now);
-      // Si es Lunes, restamos 1 día para obtener el ID de la semana que ACABA de terminar (la del Domingo)
-      // Así, si cobras el Lunes 50, el sistema registra que cobraste la Semana 49.
+      
+      // Si es Lunes, restamos 1 día para que el sistema crea que es Domingo
+      // Así cobras el cofre de la semana que terminó, no el de la que empieza.
       if (dayOfWeek === 1) {
           dateToCheck.setDate(dateToCheck.getDate() - 1);
       }
@@ -40,32 +44,29 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
 
   const targetWeekId = getRewardWeekId();
   
-  // Verificamos si ESTE cofre específico (el calculado arriba) ya se reclamó
+  // Verificamos si ESTE cofre específico ya se reclamó
   const isClaimed = userData.claimedChests?.includes(targetWeekId);
 
   useEffect(() => {
-      // --- CORRECCIÓN DE SUERTE ---
-      // Si es Lunes, el 'registro' actual está vacío (semana nueva).
-      // Debemos mirar el historial de la semana objetivo para calcular la suerte justa.
-      
+      // --- CÁLCULO DE SUERTE ---
       const habitosCompletados = habitos.filter(h => {
           let checks = 0;
           const meta = h.frecuenciaMeta || 7;
 
           if (dayOfWeek === 1) {
-              // Es Lunes: Buscar en el historial usando el ID de la semana pasada
+              // Si es Lunes, miramos el historial de la semana pasada
               const registroPasado = h.historial?.[targetWeekId];
-              // El historial puede guardar solo los checks o el objeto completo {registro:..., comentarios:...}
               const datosReales = registroPasado?.registro || registroPasado || {};
               checks = Object.values(datosReales).filter(v => v === true).length;
           } else {
-              // Es Domingo (u otro día): Usar el registro actual
+              // Si es otro día, miramos el registro actual
               checks = Object.values(h.registro || {}).filter(v => v === true).length;
           }
           
           return checks >= meta;
       }).length;
 
+      // Base 1% + 5% por cada hábito cumplido
       setLuckPercent(1 + (habitosCompletados * 5)); 
   }, [habitos, dayOfWeek, targetWeekId]);
 
@@ -79,6 +80,7 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
     const roll = Math.random() * 100; 
     let premio = { type: 'gold', amount: 0, label: 'Fondos Extra' };
 
+    // TABLA DE LOOT
     if (roll <= luckPercent) {
         premio = { type: 'nexo', amount: 1, label: '¡NEXO LEGENDARIO!' };
     } else if (roll <= (luckPercent + 20)) {
@@ -94,7 +96,7 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
 
     try {
         const updates: any = {
-            claimedChests: arrayUnion(targetWeekId) // Guardamos el ID correcto (ej: W49 aunque sea Lunes de W50)
+            claimedChests: arrayUnion(targetWeekId)
         };
         
         if (premio.type === 'nexo') {
@@ -142,6 +144,7 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
                         <span style={{fontSize:'0.75rem', background:'rgba(0,0,0,0.3)', padding:'5px 10px', borderRadius:'6px', color:'var(--text-muted)'}}>🔒 DISPONIBLE DOMINGO/LUNES</span>
                     )}
                 </div>
+                {/* BARRA DE SUERTE */}
                 <div style={{marginTop:'15px', display:'flex', alignItems:'center', justifyContent:'center', gap:'10px', fontSize:'0.7rem', color:'var(--text-muted)'}}>
                    <span>Probabilidad Legendaria:</span>
                    <span style={{color:'var(--secondary)', fontWeight:'bold'}}>{luckPercent}%</span>
