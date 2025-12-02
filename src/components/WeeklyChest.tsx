@@ -15,30 +15,38 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
   const [reward, setReward] = useState<any>(null);
   const [luckPercent, setLuckPercent] = useState(1);
   
-  const today = new Date().getDay();
-  // DEBUG: Descomenta la siguiente línea para probar el cofre hoy mismo aunque no sea Domingo/Lunes
-  // const isOpeningDay = true; 
-  const isOpeningDay = today === 0 || today === 1; // Domingo o Lunes
+  // 1. FECHA ACTUAL
+  const now = new Date();
+  const today = now.getDay(); // 0 = Domingo, 1 = Lunes
   
-  const getWeekId = () => {
-      const d = new Date();
-      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
-      const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-      const weekNo = Math.ceil(( ( (d.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
+  // 2. LÓGICA DE DÍA DE APERTURA
+  // Descomenta la linea de abajo para PROBAR hoy mismo sin importar el día
+  // const isOpeningDay = true; 
+  const isOpeningDay = today === 0 || today === 1; 
+
+  // 3. CÁLCULO DE ID DE SEMANA (Estandarizado con PanelPaciente para evitar errores)
+  const getWeekId = (date: Date) => {
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
       return `${d.getUTCFullYear()}-W${weekNo}`;
   };
-  const currentWeekId = getWeekId();
   
+  const currentWeekId = getWeekId(now);
+  
+  // 4. VERIFICAR SI YA SE RECLAMÓ
   const isClaimed = userData.claimedChests?.includes(currentWeekId);
 
   useEffect(() => {
-      // Calculamos la suerte basada en el rendimiento actual
+      // Calculamos la suerte basada en el rendimiento
       const habitosCompletados = habitos.filter(h => {
           const checks = Object.values(h.registro || {}).filter(v => v === true).length;
           const meta = h.frecuenciaMeta || 7;
           return checks >= meta;
       }).length;
-      setLuckPercent(1 + (habitosCompletados * 5)); // Aumenté un poco la suerte base
+      // Fórmula de suerte: Base 1% + 5% por cada hábito cumplido
+      setLuckPercent(1 + (habitosCompletados * 5)); 
   }, [habitos]);
 
   const openChest = async () => {
@@ -51,11 +59,11 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
     const roll = Math.random() * 100; 
     let premio = { type: 'gold', amount: 0, label: 'Fondos Extra' };
 
-    // TABLA DE LOOT
+    // TABLA DE LOOT (Probabilidades)
     if (roll <= luckPercent) {
         premio = { type: 'nexo', amount: 1, label: '¡NEXO LEGENDARIO!' };
     } else if (roll <= (luckPercent + 20)) {
-        const stats: StatTipo[] = ['vitalidad', 'sabiduria', 'vinculacion']; // Corregido 'carisma' a 'vinculacion'
+        const stats: StatTipo[] = ['vitalidad', 'sabiduria', 'vinculacion']; 
         const randomStat = stats[Math.floor(Math.random() * stats.length)];
         premio = { type: randomStat, amount: 2, label: `Mejora de ${STATS_CONFIG[randomStat].label} (+2)` };
     } else {
@@ -70,19 +78,20 @@ export function WeeklyChest({ habitos, userUid, psicologoId, userData }: Props) 
             claimedChests: arrayUnion(currentWeekId)
         };
         
-        // --- AQUÍ ESTÁ LA CORRECCIÓN CLAVE ---
+        // Guardado en campos BONUS (Economía segura)
         if (premio.type === 'nexo') {
-            updates['nexo'] = increment(1); // Nexo es moneda rara, va directo
+            updates['nexo'] = increment(1); 
         } else if (premio.type === 'gold') {
-            updates['bonusGold'] = increment(premio.amount); // Va a BONUS, no a gold directo
+            updates['bonusGold'] = increment(premio.amount); 
         } else {
-            updates[`bonusStats.${premio.type}`] = increment(premio.amount); // Va a BONUS stats
+            updates[`bonusStats.${premio.type}`] = increment(premio.amount); 
         }
 
         await updateDoc(doc(db, "users", psicologoId, "pacientes", userUid), updates);
     } catch (e) { console.error("Error guardando premio", e); }
   };
 
+  // ESTADO: YA RECLAMADO
   if (isClaimed) return (
       <div style={{textAlign:'center', opacity:0.6, padding:'15px', border:'1px dashed rgba(255,255,255,0.2)', borderRadius:'12px', marginBottom:'30px'}}>
           <p style={{color:'var(--text-muted)', fontSize:'0.9rem', margin:0}}>✅ Suministro de la semana {currentWeekId} procesado.</p>
