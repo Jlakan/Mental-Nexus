@@ -92,7 +92,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
     return () => { unsubPerfil(); unsubH(); unsubM(); unsubN(); };
   }, [pacienteSeleccionado, userUid]);
 
-  // --- FUNCIONES: EXPEDIENTE ---
+  // --- ACTIONS ---
   const guardarExpediente = async () => {
       try { await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), perfilReal); alert("Expediente actualizado."); } catch (e) { alert("Error."); }
   };
@@ -108,8 +108,9 @@ export function PanelPsicologo({ userData, userUid }: any) {
   // --- FUNCIONES: NOTAS CLÍNICAS ---
   const guardarNota = async () => {
       if(!nuevaNota.trim()) return;
+      
       const fechaSeleccionada = new Date(fechaNota);
-      fechaSeleccionada.setHours(12, 0, 0, 0); // Ajuste horario
+      fechaSeleccionada.setHours(12, 0, 0, 0); 
 
       await addDoc(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "notas_clinicas"), {
           contenido: nuevaNota,
@@ -339,21 +340,24 @@ export function PanelPsicologo({ userData, userUid }: any) {
            </div>
        )}
 
-       {/* 3. NOTAS */}
+       {/* 3. NOTAS (VERTICAL FORM) */}
        {activeTab === 'notas' && (
            <div style={{animation:'fadeIn 0.3s'}}>
                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                    <h3 style={{margin:0, color:'white'}}>BITÁCORA DE SESIÓN</h3>
                    <button onClick={exportarHistorial} style={{background:'none', border:'1px solid white', color:'white', padding:'8px 15px', borderRadius:'8px', cursor:'pointer', fontSize:'0.8rem', display:'flex', gap:'5px', alignItems:'center'}}><IconDownload/> EXPORTAR TXT</button>
                </div>
-               <div style={{display:'flex', gap:'10px', marginBottom:'30px', alignItems:'flex-start'}}>
-                   <div style={{width:'150px'}}>
-                        <label style={{fontSize:'0.7rem', color:'gray', display:'block', marginBottom:'5px'}}>FECHA DE NOTA</label>
-                        <input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{width:'100%', padding:'10px', borderRadius:'8px', background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', color:'white'}} />
-                   </div>
-                   <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)} placeholder="Escribe la evolución del paciente..." style={{flex:1, height:'80px', padding:'15px', borderRadius:'10px', background:'rgba(0,0,0,0.3)', color:'white', border:'1px solid rgba(255,255,255,0.2)', fontFamily:'inherit'}} />
-                   <button onClick={guardarNota} className="btn-primary" style={{width:'100px', height:'auto', alignSelf:'stretch'}}>AGREGAR</button>
+               
+               <div style={{background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '16px', marginBottom: '30px', border: '1px solid rgba(255,255,255,0.1)'}}>
+                    <h4 style={{margin:'0 0 15px 0', color:'var(--secondary)'}}>NUEVA ENTRADA</h4>
+                    <div style={{marginBottom:'15px'}}>
+                        <label style={{fontSize:'0.8rem', color:'gray', display:'block', marginBottom:'5px'}}>FECHA DEL REGISTRO</label>
+                        <input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{padding:'10px', borderRadius:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', fontFamily:'inherit'}} />
+                    </div>
+                    <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)} placeholder="Escribe la evolución clínica, observaciones o bitácora de sesión..." style={{width:'100%', height:'120px', padding:'15px', borderRadius:'10px', background:'rgba(0,0,0,0.3)', color:'white', border:'1px solid rgba(255,255,255,0.2)', fontFamily:'inherit', marginBottom:'15px', resize:'vertical'}} />
+                    <div style={{textAlign:'right'}}><button onClick={guardarNota} className="btn-primary" style={{padding:'10px 30px'}}>GUARDAR NOTA</button></div>
                </div>
+
                <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
                    {notasClinicas.map(nota => (
                        <div key={nota.id} style={{background:'rgba(255,255,255,0.03)', padding:'20px', borderRadius:'12px', borderLeft:'4px solid #8B5CF6'}}>
@@ -392,7 +396,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                             </div>
                             <div style={{marginTop:'15px', display:'flex', gap:'10px'}}>
                                 <button onClick={guardarHabito} className="btn-primary" style={{flex:1}}>{editingHabitId ? "GUARDAR" : "CREAR"}</button>
-                                {editingHabitId && <button onClick={cancelarEdicion} style={{background:'none', border:'1px solid #EF4444', color:'#EF4444', padding:'10px', borderRadius:'8px', cursor:'pointer'}}>CANCELAR</button>}
+                                {editingHabitId && <button onClick={() => { setEditingHabitId(null); setTituloHabito(""); setRecompensas([]); }} style={{background:'none', border:'1px solid #EF4444', color:'#EF4444', padding:'10px', borderRadius:'8px', cursor:'pointer'}}>CANCELAR</button>}
                             </div>
                         </div>
                         <div style={{display:'grid', gap:'10px'}}>
@@ -459,7 +463,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                             {misiones.map(q => (
                                 <div key={q.id} style={{background:'rgba(255,255,255,0.03)', padding:'15px', borderRadius:'12px', borderLeft:`4px solid ${q.dificultad==='facil'?'#10B981':q.dificultad==='media'?'#F59E0B':'#EF4444'}`, display:'flex', justifyContent:'space-between'}}>
                                     <div><div style={{color:'white', fontWeight:'bold'}}>{q.titulo}</div><div style={{fontSize:'0.8rem', color:'gray'}}>{q.estado.toUpperCase()} | Vence: {q.fechaVencimiento}</div></div>
-                                    <button onClick={() => eliminarQuest(q.id)} style={{background:'none', border:'none', color:'#EF4444', cursor:'pointer'}}><IconTrash/></button>
+                                    <button onClick={async() => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id,"misiones",q.id)); }} style={{background:'none', border:'none', color:'#EF4444', cursor:'pointer'}}><IconTrash/></button>
                                 </div>
                             ))}
                         </div>
