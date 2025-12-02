@@ -1,11 +1,9 @@
 // src/game/GameAssets.ts
 
 // ==========================================
-// 1. CONFIGURACIÓN MATEMÁTICA (NIVEL DE JUGADOR)
+// 1. CONFIGURACIÓN MATEMÁTICA
 // ==========================================
 export const XP_POR_HABITO = 10;
-
-// Tabla de Nivel Global (Jugador)
 export const TABLA_NIVELES = [0, 100, 250, 450, 700, 1000, 1350, 1750, 2200, 2700, 3300, 4000, 4800, 5700, 6700, 7800, 9000, 10300, 11700, 13200, 14800, 16500, 18300, 20200, 22200];
 
 export const obtenerNivel = (xp: number) => {
@@ -18,45 +16,7 @@ export const obtenerMetaSiguiente = (nivelActual: number) => {
 };
 
 // ==========================================
-// 2. NUEVA MATEMÁTICA PARA STATS (MAESTRÍA)
-// ==========================================
-export const MAESTRIA_POR_HABITO = 15; // 15% de un nivel básico
-
-// Calcula el Nivel del Stat y el progreso actual basado en puntos totales de maestría
-export const calcularDetalleStat = (puntosTotales: number) => {
-    let nivel = 0;
-    let costoSiguiente = 100; // Costo inicial (Niveles 0-5)
-    let puntosRestantes = puntosTotales;
-
-    // Bucle para "gastar" los puntos y subir de nivel
-    while (true) {
-        // Definir la curva de dificultad
-        if (nivel < 5) costoSiguiente = 100;        // Principiante (7 hábitos)
-        else if (nivel < 10) costoSiguiente = 200;  // Intermedio (14 hábitos)
-        else if (nivel < 20) costoSiguiente = 400;  // Experto
-        else costoSiguiente = 800;                  // Maestro
-
-        if (puntosRestantes >= costoSiguiente) {
-            puntosRestantes -= costoSiguiente;
-            nivel++;
-        } else {
-            break; // No alcanza para subir más
-        }
-    }
-
-    // Calculamos porcentaje de la barra actual
-    const porcentaje = Math.floor((puntosRestantes / costoSiguiente) * 100);
-
-    return {
-        nivel: nivel,            // El número grande (Ej: 5)
-        progreso: porcentaje,    // La barrita (Ej: 45%)
-        actual: puntosRestantes, // Texto pequeño (45/100)
-        meta: costoSiguiente
-    };
-};
-
-// ==========================================
-// 3. TIPOS DE DATOS
+// 2. TIPOS DE DATOS
 // ==========================================
 export type PersonajeTipo = 'atlas' | 'explorador_demo'; 
 export type StatTipo = 'vitalidad' | 'sabiduria' | 'vinculacion' | 'gold' | 'nexo';
@@ -67,11 +27,21 @@ export interface GameItem {
 }
 
 export interface EtapaEvolucion {
-    nivelMinimo: number; nombreClase: string; lema: string; descripcionVisual: string; imagen: string; 
+    nivelMinimo: number;
+    nombreClase: string;
+    lema: string;
+    descripcionVisual: string;
+    descripcionNarrativa: string; // NUEVO: Historia de la etapa
+    imagen: string; 
 }
 
 export interface AvatarDef {
-  id: PersonajeTipo; nombre: string; lemaPrincipal: string; descripcion: string;
+  id: PersonajeTipo;
+  nombre: string;
+  arquetipo: string; // NUEVO
+  lemaPrincipal: string;
+  bio: string; // NUEVO: Historia completa
+  descripcion: string; // Breve para la tarjeta
   statsBase: { vitalidad: number; sabiduria: number; vinculacion: number };
   etapas: EtapaEvolucion[];
   tiendaExclusiva: GameItem[];
@@ -83,7 +53,7 @@ export const obtenerEtapaActual = (personaje: AvatarDef, nivelPaciente: number) 
 };
 
 // ==========================================
-// 4. CONFIGURACIÓN VISUAL
+// 3. CONFIGURACIÓN DE STATS
 // ==========================================
 export const STATS_CONFIG = {
   vitalidad: { label: "Integridad del Sistema", icon: "/vitalidad.png", desc: "Mantenimiento del motor biológico.", color: "#EF4444" },
@@ -94,29 +64,68 @@ export const STATS_CONFIG = {
 };
 
 // ==========================================
-// 5. PERSONAJES
+// 4. CATÁLOGO DE PERSONAJES
 // ==========================================
 export const PERSONAJES: Record<PersonajeTipo, AvatarDef> = {
   atlas: {
-    id: 'atlas', nombre: 'Atlas Vance', lemaPrincipal: 'El Auditor del Caos',
-    descripcion: 'Atlas realiza una auditoría hostil a las fuerzas del mal.',
-    // Stats Base (Niveles iniciales)
+    id: 'atlas',
+    nombre: 'Atlas Vance',
+    arquetipo: 'El Estratega Analítico',
+    lemaPrincipal: 'El caos es solo un problema de diseño esperando ser resuelto.',
+    descripcion: '¿Por qué ensuciarse las manos cuando puedes reprogramar la realidad? Atlas realiza una auditoría hostil a las fuerzas del mal.',
+    bio: 'Atlas no cree en la suerte ni en esperar a que las cosas mejoren por sí solas. Para él, la mente y la vida son sistemas complejos que pueden ser entendidos, optimizados y dominados. Su superpoder no es la fuerza bruta, sino la capacidad de analizar sus emociones, trazar un plan de acción y ejecutarlo con la precisión de un ingeniero. Al elegir a Atlas, eliges tomar el control, diseñar tus propias soluciones y convertir los obstáculos en datos útiles para tu crecimiento.',
     statsBase: { vitalidad: 1, sabiduria: 3, vinculacion: 3 },
+    
     etapas: [
-        { nivelMinimo: 1, nombreClase: "Consultor Táctico", lema: "Mis tarifas son altas.", descripcionVisual: "Traje sastre oscuro.", imagen: "/atlas_1.mp4" },
-        { nivelMinimo: 5, nombreClase: "Director de Operaciones", lema: "Reestructurando conflicto.", descripcionVisual: "Chaleco ejecutivo.", imagen: "/atlas_2.mp4" },
-        { nivelMinimo: 12, nombreClase: "CEO Ejecutivo", lema: "Liquidación de pasivos.", descripcionVisual: "Traje blanco.", imagen: "/atlas_3.mp4" },
-        { nivelMinimo: 20, nombreClase: "Arquitecto del Sistema", lema: "Realidad optimizada.", descripcionVisual: "Traje de luz.", imagen: "/atlas_4.mp4" }
+        {
+            nivelMinimo: 1,
+            nombreClase: "Consultor Táctico",
+            lema: "Primero observamos. Luego actuamos.",
+            descripcionVisual: "Traje sastre oscuro. Maletín Aegis.",
+            descripcionNarrativa: "El punto de partida. Representa la etapa de autoconocimiento. Identificamos patrones, recolectamos datos sobre lo que sentimos y preparamos las herramientas básicas para el cambio. No hay movimientos bruscos todavía, solo un análisis brillante del terreno.",
+            imagen: "/atlas_1.mp4"
+        },
+        {
+            nivelMinimo: 5,
+            nombreClase: "Director de Operaciones",
+            lema: "La teoría se convierte en práctica. Ejecutando protocolos.",
+            descripcionVisual: "Chaleco ejecutivo. Maletín flotante.",
+            descripcionNarrativa: "Representa la toma de acción. Ya no solo observamos los problemas; estamos interviniendo activamente en ellos. Es la etapa de aplicar estrategias de afrontamiento y gestionar el día a día con eficiencia.",
+            imagen: "/atlas_2.mp4"
+        },
+        {
+            nivelMinimo: 12,
+            nombreClase: "CEO Ejecutivo",
+            lema: "El control no se pide, se establece.",
+            descripcionVisual: "Traje blanco inmaculado. Androide guardián.",
+            descripcionNarrativa: "La cima del liderazgo personal. Has establecido límites saludables (el guardián) y tienes la confianza para delegar y gestionar tus recursos emocionales sin desgastarte. Eres el dueño de tu propia narrativa.",
+            imagen: "/atlas_3.mp4"
+        },
+        {
+            nivelMinimo: 20,
+            nombreClase: "Arquitecto del Sistema Ápex",
+            lema: "Más allá de los límites. Fusión total.",
+            descripcionVisual: "Traje de luz. Enjambre de drones.",
+            descripcionNarrativa: "La evolución final. Representa la integración total y la resiliencia. Las herramientas ya no son externas; las has interiorizado. Eres capaz de adaptarte a cualquier situación en tiempo real, transformando el entorno.",
+            imagen: "/atlas_4.mp4"
+        }
     ],
+
     tiendaExclusiva: [
       { id: 'stylus', nombre: 'Stylus de Mando', precio: 50, emoji: '🖊️', tipo: 'arma', descripcion: 'Órdenes básicas.' },
       { id: 'traje', nombre: 'Traje Sastre', precio: 100, emoji: '👔', tipo: 'ropa', descripcion: 'Impecable.', reqStat: { type: 'vinculacion', valor: 5 } }
     ]
   },
+
   explorador_demo: {
-    id: 'explorador_demo', nombre: 'Explorador', lemaPrincipal: 'Siempre adelante', descripcion: 'Demo.',
+    id: 'explorador_demo',
+    nombre: 'Explorador (Demo)',
+    arquetipo: 'El Viajero',
+    lemaPrincipal: 'Siempre adelante',
+    bio: 'Texto de relleno.',
+    descripcion: 'Personaje de prueba.',
     statsBase: { vitalidad: 1, sabiduria: 1, vinculacion: 1 },
-    etapas: [{ nivelMinimo: 1, nombreClase: "Caminante", lema: "Hola", descripcionVisual: "Normal", imagen: "/logo.jpg" }],
+    etapas: [{ nivelMinimo: 1, nombreClase: "Caminante", lema: "Hola", descripcionVisual: "Normal", descripcionNarrativa: "...", imagen: "/logo.jpg" }],
     tiendaExclusiva: []
   }
 };

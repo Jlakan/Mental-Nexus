@@ -26,7 +26,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
   // 1. Cargar lista de pacientes
   useEffect(() => {
-    // Ruta: users/{YO}/pacientes
     const colRef = collection(db, "users", userUid, "pacientes");
     const unsubscribe = onSnapshot(colRef, (snap) => {
       const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -38,13 +37,10 @@ export function PanelPsicologo({ userData, userUid }: any) {
   // 2. Cargar hábitos del paciente seleccionado
   useEffect(() => {
     if (!pacienteSeleccionado) { setHabitosPaciente([]); return; }
-    
-    // CORRECCIÓN: Ruta profunda -> users/{YO}/pacientes/{PACIENTE}/habitos
-    const q = query(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "habitos"));
-    
+    const q = query(collection(db, "users", pacienteSeleccionado.id, "habitos"));
     const unsubscribe = onSnapshot(q, (snap) => setHabitosPaciente(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     return () => unsubscribe();
-  }, [pacienteSeleccionado, userUid]);
+  }, [pacienteSeleccionado]);
 
   // FILTRO DE PACIENTES
   const pacientesFiltrados = pacientes.filter(p => 
@@ -60,7 +56,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
   // --- ACCIONES CLÍNICAS ---
   const registrarAsistencia = async () => {
       if(!confirm(`¿Registrar asistencia de ${pacienteSeleccionado.displayName}?\n\n+1 NEXO otorgado.`)) return;
-      // Ruta profunda
       await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), { nexo: increment(1), xp: increment(500) });
       alert("Asistencia registrada.");
   };
@@ -68,10 +63,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const guardarHabito = async () => {
     if (!tituloHabito || !pacienteSeleccionado) return;
     const datos = { titulo: tituloHabito, frecuenciaMeta: frecuenciaMeta, recompensas: recompensas.length > 0 ? recompensas : ['xp'] };
-    
-    // CORRECCIÓN: Ruta profunda
-    const colRef = collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "habitos");
-    
+    const colRef = collection(db, "users", pacienteSeleccionado.id, "habitos");
     try {
         if (editingId) await updateDoc(doc(colRef, editingId), datos);
         else await addDoc(colRef, { ...datos, asignadoPor: userUid, estado: 'activo', createdAt: new Date(), registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false } });
@@ -85,20 +77,13 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const cancelarEdicion = () => { setTituloHabito(""); setFrecuenciaMeta(7); setRecompensas([]); setEditingId(null); };
   
   const autorizarPaciente = async (id: string, estado: boolean) => await updateDoc(doc(db, "users", userUid, "pacientes", id), { isAuthorized: !estado });
-  
   const archivarHabito = async (id: string, estadoActual: string) => {
       const nuevo = estadoActual === 'archivado' ? 'activo' : 'archivado';
-      if(confirm(nuevo === 'archivado' ? "Se moverá al historial." : "Se reactivará.")) 
-        // Ruta profunda
-        await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "habitos", id), { estado: nuevo });
+      if(confirm(nuevo === 'archivado' ? "Se moverá al historial." : "Se reactivará.")) await updateDoc(doc(db, "users", pacienteSeleccionado.id, "habitos", id), { estado: nuevo });
   };
-  
   const eliminarHabito = async (id: string) => {
-    if(confirm("⚠️ ¿ELIMINAR TOTALMENTE?")) 
-        // Ruta profunda
-        await deleteDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "habitos", id));
+    if(confirm("⚠️ ¿ELIMINAR TOTALMENTE?")) await deleteDoc(doc(db, "users", pacienteSeleccionado.id, "habitos", id));
   };
-  
   const contarDias = (reg: any) => Object.values(reg).filter(v => v === true).length;
 
   // Monitor de Balance
@@ -128,13 +113,13 @@ export function PanelPsicologo({ userData, userUid }: any) {
         <div style={{textAlign: 'left'}}>
             {/* HEADER GENERAL */}
             <div style={{background: 'var(--bg-card)', padding: '20px', borderRadius: '16px', marginBottom: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: 'var(--glass-border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
-                    <img src="/psicologo.png" style={{width:'60px', height:'60px', borderRadius:'50%', border:'2px solid var(--primary)', objectFit:'cover'}} />
-                    <div>
-                        <h3 style={{margin:0, color: 'var(--primary)', fontSize:'1.5rem'}}>PANEL DE CONTROL</h3>
-                        <p style={{margin:0, fontSize:'0.9rem', color:'var(--text-muted)'}}>Código: <strong style={{color:'white'}}>{userData.codigoVinculacion}</strong></p>
-                    </div>
-                </div>
+            <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+    <img src="/psicologo.png" style={{width:'60px', height:'60px', borderRadius:'50%', border:'2px solid var(--primary)', objectFit:'cover'}} />
+    <div>
+        <h3 style={{margin:0, color: 'var(--primary)', fontSize:'1.5rem'}}>PANEL DE CONTROL</h3>
+        <p style={{margin:0, fontSize:'0.9rem', color:'var(--text-muted)'}}>Código: <strong style={{color:'white'}}>{userData.codigoVinculacion}</strong></p>
+    </div>
+</div>
             </div>
 
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
@@ -168,7 +153,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                                     <div style={{fontSize: '0.9rem', color: 'var(--text-muted)'}}>{p.email}</div>
                                 </div>
                                 
-                                {/* MINI AVATAR */}
+                                {/* MINI AVATAR CORREGIDO */}
                                 <div style={{width:'50px', height:'50px', borderRadius:'50%', overflow:'hidden', background:'black', border:'1px solid rgba(255,255,255,0.1)'}}>
                                     {avatarData ? (
                                         avatarData.imagen.endsWith('.mp4') ? 
@@ -281,7 +266,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
       {analizarBalance()}
 
-      {/* FORMULARIO */}
+      {/* FORMULARIO DE HÁBITOS (IGUAL) */}
       <div style={{background: 'var(--bg-card)', padding: '30px', borderRadius: '16px', marginBottom: '30px', border: editingId ? '2px solid var(--primary)' : 'var(--glass-border)', boxShadow: '0 4px 30px rgba(0,0,0,0.3)'}}>
         <h4 style={{color: 'white', marginTop:0, fontSize:'1.2rem', marginBottom:'20px'}}>{editingId ? "✏️ EDITAR PROTOCOLO" : "NUEVO PROTOCOLO"}</h4>
         
