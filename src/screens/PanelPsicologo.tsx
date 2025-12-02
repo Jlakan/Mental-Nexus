@@ -94,6 +94,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
   };
 
   const toggleRecompensa = (t: string) => recompensas.includes(t) ? setRecompensas(recompensas.filter(r => r !== t)) : setRecompensas([...recompensas, t]);
+  
   const guardarHabito = async () => {
     if (!tituloHabito) return;
     const d = { titulo: tituloHabito, frecuenciaMeta: frecuenciaMeta, recompensas: recompensas.length?recompensas:['xp'] };
@@ -101,6 +102,38 @@ export function PanelPsicologo({ userData, userUid }: any) {
     if (editingHabitId) await updateDoc(doc(col, editingHabitId), d); else await addDoc(col, {...d, estado:'activo', createdAt:new Date(), registro:{L:false,M:false,X:false,J:false,V:false,S:false,D:false}});
     setTituloHabito(""); setFrecuenciaMeta(7); setRecompensas([]); setEditingHabitId(null);
   };
+
+  // --- FUNCIONES RESTAURADAS PARA CORREGIR ERROR DE COMPILACIÓN ---
+  const cargarParaEditar = (h: any) => {
+      setTituloHabito(h.titulo); setFrecuenciaMeta(h.frecuenciaMeta); setRecompensas(h.recompensas || []); setEditingHabitId(h.id);
+  };
+  
+  const cancelarEdicion = () => {
+      setTituloHabito(""); setFrecuenciaMeta(7); setRecompensas([]); setEditingHabitId(null);
+  };
+
+  const addSub = () => { 
+      if(newSubText) { setQuestSubs([...questSubs, {id:Date.now(), texto:newSubText, completado:false}]); setNewSubText(""); }
+  };
+
+  const analizarBalance = () => {
+      if (habitos.length === 0) return null;
+      const activos = habitos.filter(h => h.estado !== 'archivado');
+      const stats = { vitalidad: 0, sabiduria: 0, vinculacion: 0 };
+      activos.forEach(h => {
+          if (h.recompensas?.includes('vitalidad')) stats.vitalidad++;
+          if (h.recompensas?.includes('sabiduria')) stats.sabiduria++;
+          if (h.recompensas?.includes('vinculacion')) stats.vinculacion++;
+      });
+      const faltantes = [];
+      if (stats.vitalidad === 0) faltantes.push("INTEGRIDAD");
+      if (stats.sabiduria === 0) faltantes.push("I+D");
+      if (stats.vinculacion === 0) faltantes.push("VINCULACIÓN");
+      if (faltantes.length > 0) return <div style={{background:'rgba(245,158,11,0.1)', border:'1px solid #F59E0B', color:'#F59E0B', padding:'15px', borderRadius:'12px', marginBottom:'20px', fontSize:'1rem'}}>⚠️ <strong>Balance:</strong> Faltan actividades de <b>{faltantes.join(", ")}</b>.</div>;
+      return null;
+  };
+  // -------------------------------------------------------------
+
   const archivarHabito = async (id:string, est:string) => { if(confirm("¿Cambiar estado?")) await updateDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id,"habitos",id),{estado: est==='archivado'?'activo':'archivado'}); };
   const eliminarHabito = async (id:string) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id,"habitos",id)); };
   
@@ -203,7 +236,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(100px, 1fr))', gap:'15px', marginBottom:'30px'}}>
                    <div onClick={() => setSelectedResource({type:'gold', value: paciente.gold})} style={{background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(148, 163, 184, 0.1)', cursor:'pointer'}}><img src={STATS_CONFIG.gold.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} /><div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#F59E0B'}}>{paciente.gold || 0}</div><div style={{fontSize:'0.7rem', color:'#94A3B8'}}>FONDOS</div></div>
                    <div onClick={() => setSelectedResource({type:'nexo', value: paciente.nexo})} style={{background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(139, 92, 246, 0.3)', cursor:'pointer'}}><img src={STATS_CONFIG.nexo.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} /><div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#8B5CF6'}}>{paciente.nexo || 0}</div><div style={{fontSize:'0.7rem', color:'#94A3B8'}}>NEXOS</div></div>
-                   {['vitalidad','sabiduria','vinculacion'].map(stat => (<div key={stat} onClick={() => setSelectedResource({type:stat, value: paciente.stats?.[stat]})} style={{background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', textAlign:'center', cursor:'pointer'}}>{/* @ts-ignore */}<img src={STATS_CONFIG[stat].icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} />{/* @ts-ignore */}<div style={{fontSize:'1.5rem', fontWeight:'bold', color:'white'}}>{Number(paciente.stats?.[stat] || 0).toFixed(1)}</div>{/* @ts-ignore */}<div style={{fontSize:'0.7rem', color:'#94A3B8'}}>{STATS_CONFIG[stat].label}</div></div>))}
+                   {['vitalidad','sabiduria','vinculacion'].map(stat => (<div key={stat} onClick={() => setSelectedResource({type:stat, value: paciente.stats?.[stat]})} style={{background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', textAlign:'center', cursor:'pointer'}}>{/* @ts-ignore */}<img src={STATS_CONFIG[stat].icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} />{/* @ts-ignore */}<div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#E2E8F0'}}>{Number(paciente.stats?.[stat] || 0).toFixed(1)}</div>{/* @ts-ignore */}<div style={{fontSize:'0.7rem', color:'#94A3B8'}}>{STATS_CONFIG[stat].label}</div></div>))}
                </div>
                {analizarBalance()}
                <h3 style={{marginTop:0, color:'#F8FAFC', fontFamily:'Rajdhani'}}>RESUMEN DE HOY</h3>
@@ -213,6 +246,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
        {activeTab === 'expediente' && (
            <div style={{animation:'fadeIn 0.3s', maxWidth:'600px'}}>
+               <h3 style={{color:'var(--secondary)', borderBottom:'1px solid var(--secondary)', paddingBottom:'10px', marginTop:0}}>DATOS PERSONALES (PRIVADO)</h3>
                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'15px'}}>
                    {['nombreReal','telefono','fechaNacimiento','contactoEmergencia','diagnostico'].map(field => (
                        <div key={field}><label style={{fontSize:'0.8rem', color:'#94A3B8', textTransform:'capitalize'}}>{field.replace(/([A-Z])/g, ' $1')}</label>
@@ -221,7 +255,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                    ))}
                </div>
                <div style={{marginBottom:'20px'}}><label style={{fontSize:'0.8rem', color:'#94A3B8'}}>Medicación</label><textarea value={perfilReal.medicacion} onChange={e => setPerfilReal({...perfilReal, medicacion: e.target.value})} style={{width:'100%', height:'80px', padding:'10px', background:'rgba(15, 23, 42, 0.6)', border:'1px solid rgba(148, 163, 184, 0.2)', color:'#E2E8F0', borderRadius:'8px'}} /></div>
-               <button onClick={guardarExpediente} className="btn-primary">GUARDAR</button>
+               <button onClick={guardarExpediente} className="btn-primary">GUARDAR CAMBIOS</button>
            </div>
        )}
 
@@ -236,8 +270,12 @@ export function PanelPsicologo({ userData, userUid }: any) {
                </div>
                
                <div style={{background: 'rgba(15, 23, 42, 0.6)', padding: '20px', borderRadius: '16px', marginBottom: '30px', border: '1px solid rgba(148, 163, 184, 0.1)'}}>
-                    <div style={{marginBottom:'10px'}}><input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{padding:'10px', borderRadius:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(148, 163, 184, 0.2)', color:'#E2E8F0', fontFamily:'inherit'}} /></div>
-                    <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)} placeholder="Nueva nota..." style={{width:'100%', height:'120px', padding:'15px', borderRadius:'10px', background:'rgba(0,0,0,0.3)', color:'#E2E8F0', border:'1px solid rgba(148, 163, 184, 0.2)', fontFamily:'inherit', marginBottom:'15px', resize:'vertical'}} />
+                    <h4 style={{margin:'0 0 15px 0', color:'var(--secondary)'}}>NUEVA ENTRADA</h4>
+                    <div style={{marginBottom:'15px'}}>
+                        <label style={{fontSize:'0.8rem', color:'#94A3B8', display:'block', marginBottom:'5px'}}>FECHA DEL REGISTRO</label>
+                        <input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{padding:'10px', borderRadius:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'#E2E8F0', fontFamily:'inherit'}} />
+                    </div>
+                    <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)} placeholder="Escribe la evolución clínica, observaciones o bitácora de sesión..." style={{width:'100%', height:'120px', padding:'15px', borderRadius:'10px', background:'rgba(0,0,0,0.3)', color:'#E2E8F0', border:'1px solid rgba(255,255,255,0.2)', fontFamily:'inherit', marginBottom:'15px', resize:'vertical'}} />
                     <div style={{textAlign:'right'}}><button onClick={guardarNota} className="btn-primary" style={{padding:'10px 30px'}}>GUARDAR NOTA</button></div>
                </div>
            </div>
@@ -247,7 +285,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
            <div style={{animation:'fadeIn 0.3s'}}>
                <div style={{marginBottom:'40px'}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', cursor:'pointer'}} onClick={() => setShowHabits(!showHabits)}>
-                      <h3 style={{margin:0, fontFamily:'Rajdhani', color:'#F8FAFC', fontSize:'1.5rem'}}>PROTOCOLOS ({habitos.length})</h3>
+                      <h3 style={{margin:0, fontFamily:'Rajdhani', color:'#F8FAFC', fontSize:'1.5rem'}}>PROTOCOLOS DIARIOS ({habitos.length})</h3>
                       {showHabits ? <IconArrowUp /> : <IconArrowDown />}
                   </div>
                   {showHabits && (
@@ -326,6 +364,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                   {showQuests && (
                       <>
                         <div style={{background: 'rgba(15, 23, 42, 0.6)', padding: '20px', borderRadius: '16px', marginBottom: '20px', border: '1px solid rgba(148, 163, 184, 0.1)'}}>
+                             <h4 style={{color: 'var(--secondary)', marginTop:0, fontSize:'1.1rem', marginBottom:'15px'}}>⚔️ NUEVA MISIÓN</h4>
                              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px'}}>
                                  <input type="text" value={questTitulo} onChange={e => setQuestTitulo(e.target.value)} placeholder="Título..." style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(148, 163, 184, 0.2)', color:'#E2E8F0', padding:'10px', borderRadius:'8px'}} />
                                  <input type="date" value={questFecha} onChange={e => setQuestFecha(e.target.value)} style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(148, 163, 184, 0.2)', color:'#E2E8F0', padding:'10px', borderRadius:'8px'}} />
