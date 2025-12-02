@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, updateDoc, addDoc, deleteDoc, collection, query, where, onSnapshot, increment } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, deleteDoc, collection, query, onSnapshot, increment } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { STATS_CONFIG, StatTipo, PERSONAJES, PersonajeTipo, obtenerEtapaActual, obtenerNivel } from '../game/GameAssets';
 
@@ -15,7 +15,8 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const [pacientes, setPacientes] = useState<any[]>([]); 
   const [pacienteSeleccionado, setPacienteSeleccionado] = useState<any>(null);
   
-  // DATOS DEL PACIENTE
+  // DATOS DEL PACIENTE (LIVE)
+  const [datosPacienteLive, setDatosPacienteLive] = useState<any>(null); // Para ver stats en tiempo real
   const [habitosPaciente, setHabitosPaciente] = useState<any[]>([]);
   const [misionesPaciente, setMisionesPaciente] = useState<any[]>([]);
   
@@ -49,20 +50,32 @@ export function PanelPsicologo({ userData, userUid }: any) {
     return () => unsubscribe();
   }, [userUid]);
 
-  // 2. CARGAR DATOS DEL PACIENTE SELECCIONADO
+  // 2. CARGAR DATOS DEL PACIENTE SELECCIONADO (CON RUTAS CORREGIDAS)
   useEffect(() => {
-    if (!pacienteSeleccionado) { setHabitosPaciente([]); setMisionesPaciente([]); return; }
+    if (!pacienteSeleccionado) { 
+        setHabitosPaciente([]); 
+        setMisionesPaciente([]); 
+        setDatosPacienteLive(null);
+        return; 
+    }
     
-    const unsubHabitos = onSnapshot(query(collection(db, "users", pacienteSeleccionado.id, "habitos")), (snap) => {
+    // A) Escuchar perfil del paciente (para Stats en vivo)
+    const unsubPerfil = onSnapshot(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), (docSnap) => {
+        if (docSnap.exists()) setDatosPacienteLive({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    // B) Escuchar Hábitos (RUTA CORREGIDA: users/{psico}/pacientes/{paciente}/habitos)
+    const unsubHabitos = onSnapshot(query(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "habitos")), (snap) => {
         setHabitosPaciente(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    const unsubMisiones = onSnapshot(query(collection(db, "users", pacienteSeleccionado.id, "misiones")), (snap) => {
+    // C) Escuchar Misiones (RUTA CORREGIDA)
+    const unsubMisiones = onSnapshot(query(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "misiones")), (snap) => {
         setMisionesPaciente(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    return () => { unsubHabitos(); unsubMisiones(); };
-  }, [pacienteSeleccionado]);
+    return () => { unsubPerfil(); unsubHabitos(); unsubMisiones(); };
+  }, [pacienteSeleccionado, userUid]); // Agregado userUid a dependencias
 
   // --- LOGICA DE QUESTS ---
   const addSubObjetivo = () => {
@@ -75,7 +88,8 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const guardarQuest = async () => {
       if (!questTitulo || !questDesc || !questFecha) return alert("Completa todos los campos");
       try {
-          await addDoc(collection(db, "users", pacienteSeleccionado.id, "misiones"), {
+          // RUTA CORREGIDA
+          await addDoc(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "misiones"), {
               titulo: questTitulo, descripcion: questDesc, dificultad: questDif,
               fechaVencimiento: questFecha, subObjetivos: questSubs,
               estado: 'activa', createdAt: new Date()
@@ -86,7 +100,8 @@ export function PanelPsicologo({ userData, userUid }: any) {
   };
   
   const eliminarQuest = async (id: string) => {
-      if(confirm("¿Eliminar misión?")) await deleteDoc(doc(db, "users", pacienteSeleccionado.id, "misiones", id));
+      // RUTA CORREGIDA
+      if(confirm("¿Eliminar misión?")) await deleteDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "misiones", id));
   };
 
   // --- LOGICA DE HÁBITOS ---
@@ -96,7 +111,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
       alert("Asistencia registrada.");
   };
 
-  // --- FUNCIÓN RECUPERADA (ESTABA FALTANDO) ---
   const toggleRecompensa = (tipo: string) => {
     if (recompensas.includes(tipo)) setRecompensas(recompensas.filter(r => r !== tipo));
     else setRecompensas([...recompensas, tipo]);
@@ -105,7 +119,8 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const guardarHabito = async () => {
     if (!tituloHabito || !pacienteSeleccionado) return;
     const datos = { titulo: tituloHabito, frecuenciaMeta: frecuenciaMeta, recompensas: recompensas.length > 0 ? recompensas : ['xp'] };
-    const colRef = collection(db, "users", pacienteSeleccionado.id, "habitos");
+    // RUTA CORREGIDA
+    const colRef = collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "habitos");
     try {
         if (editingId) await updateDoc(doc(colRef, editingId), datos);
         else await addDoc(colRef, { ...datos, asignadoPor: userUid, estado: 'activo', createdAt: new Date(), registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false } });
@@ -119,12 +134,16 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const cancelarEdicion = () => { setTituloHabito(""); setFrecuenciaMeta(7); setRecompensas([]); setEditingId(null); };
   
   const autorizarPaciente = async (id: string, estado: boolean) => await updateDoc(doc(db, "users", userUid, "pacientes", id), { isAuthorized: !estado });
+  
   const archivarHabito = async (id: string, estadoActual: string) => {
       const nuevo = estadoActual === 'archivado' ? 'activo' : 'archivado';
-      if(confirm(nuevo === 'archivado' ? "Se moverá al historial." : "Se reactivará.")) await updateDoc(doc(db, "users", pacienteSeleccionado.id, "habitos", id), { estado: nuevo });
+      // RUTA CORREGIDA
+      if(confirm(nuevo === 'archivado' ? "Se moverá al historial." : "Se reactivará.")) await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "habitos", id), { estado: nuevo });
   };
+  
   const eliminarHabito = async (id: string) => {
-    if(confirm("⚠️ ¿ELIMINAR TOTALMENTE?")) await deleteDoc(doc(db, "users", pacienteSeleccionado.id, "habitos", id));
+    // RUTA CORREGIDA
+    if(confirm("⚠️ ¿ELIMINAR TOTALMENTE?")) await deleteDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "habitos", id));
   };
   
   const contarDias = (reg: any) => Object.values(reg || {}).filter(v => v === true).length;
@@ -198,9 +217,10 @@ export function PanelPsicologo({ userData, userUid }: any) {
   }
 
   // VISTA 2: DETALLE DEL PACIENTE
-  const avatarKey = pacienteSeleccionado.avatarKey as PersonajeTipo;
+  const paciente = datosPacienteLive || pacienteSeleccionado; // Usar datos en vivo si existen
+  const avatarKey = paciente.avatarKey as PersonajeTipo;
   const avatarDef = PERSONAJES[avatarKey] || PERSONAJES['atlas'];
-  const nivelPaciente = obtenerNivel(pacienteSeleccionado.xp || 0);
+  const nivelPaciente = obtenerNivel(paciente.xp || 0);
   const etapaVisual = obtenerEtapaActual(avatarDef, nivelPaciente);
 
   return (
@@ -208,7 +228,12 @@ export function PanelPsicologo({ userData, userUid }: any) {
       
       {selectedResource && (
            <div style={{position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999, background:'rgba(0,0,0,0.85)', backdropFilter:'blur(15px)', display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'}} onClick={() => setSelectedResource(null)}>
-               <h2 style={{color:'white'}}>Recurso: {selectedResource.value}</h2>
+               <div style={{background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', padding: '40px', textAlign: 'center', maxWidth: '600px', width:'100%', boxShadow: '0 0 80px rgba(6, 182, 212, 0.15)', display: 'flex', flexDirection: 'column', alignItems: 'center'}} onClick={e => e.stopPropagation()}>
+                  <h2 style={{color: selectedResource.type === 'gold' ? '#F59E0B' : (selectedResource.type === 'nexo' ? '#8B5CF6' : 'white'), fontFamily: 'Rajdhani', textTransform:'uppercase', fontSize:'2.5rem', marginBottom:'30px', textShadow: '0 0 20px rgba(0,0,0,0.5)'}}>{STATS_CONFIG[selectedResource.type].label}</h2>
+                  <img src={STATS_CONFIG[selectedResource.type].icon} style={{width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '40vh', marginBottom: '30px', filter: 'drop-shadow(0 0 30px rgba(255,255,255,0.1))'}} />
+                  <div style={{fontSize: '4rem', fontWeight: 'bold', color: 'white', marginBottom: '10px', lineHeight: 1}}>{Math.floor(selectedResource.value)}<span style={{fontSize:'1.5rem', color:'var(--text-muted)'}}>.{Math.round((selectedResource.value - Math.floor(selectedResource.value))*100)}</span></div>
+                  <button onClick={() => setSelectedResource(null)} className="btn-primary" style={{marginTop: '40px', width: '200px', fontSize: '1.1rem'}}>ENTENDIDO</button>
+              </div>
            </div>
       )}
 
@@ -220,11 +245,37 @@ export function PanelPsicologo({ userData, userUid }: any) {
               <div style={{width:'100px', height:'100px', borderRadius:'50%', overflow:'hidden', boxShadow:'0 0 20px var(--primary)', border: '2px solid var(--primary)', background: 'black'}}>
                 {etapaVisual.imagen.endsWith('.mp4') ? <video src={etapaVisual.imagen} autoPlay loop muted playsInline style={{width:'100%', height:'100%', objectFit:'cover'}} /> : <img src={etapaVisual.imagen} style={{width:'100%', height:'100%', objectFit:'cover'}} />}
               </div>
-              <div><h1 style={{margin:0, fontSize:'2rem', color:'white', fontFamily:'Rajdhani'}}>{pacienteSeleccionado.displayName}</h1><div style={{color:'var(--primary)', fontSize:'1rem', textTransform:'uppercase', letterSpacing:'1px'}}>{etapaVisual.nombreClase} • NIVEL {nivelPaciente}</div></div>
+              <div><h1 style={{margin:0, fontSize:'2rem', color:'white', fontFamily:'Rajdhani'}}>{paciente.displayName}</h1><div style={{color:'var(--primary)', fontSize:'1rem', textTransform:'uppercase', letterSpacing:'1px'}}>{etapaVisual.nombreClase} • NIVEL {nivelPaciente}</div></div>
           </div>
           <button onClick={registrarAsistencia} style={{background: 'rgba(139, 92, 246, 0.2)', border: '1px solid #8B5CF6', color: '#8B5CF6', padding:'15px 30px', borderRadius:'12px', cursor:'pointer', fontWeight:'bold', display:'flex', alignItems:'center', gap:'10px', fontSize:'1rem'}}><img src={STATS_CONFIG.nexo.icon} width="30"/> REGISTRAR ASISTENCIA</button>
       </div>
       
+      {/* STATS RECUPERADOS */}
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(100px, 1fr))', gap:'15px', marginBottom:'30px'}}>
+           <div onClick={() => setSelectedResource({ type: 'gold', value: paciente.gold || 0 })} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', cursor:'pointer', border:'1px solid rgba(245, 158, 11, 0.3)'}}>
+                <img src={STATS_CONFIG.gold.icon} width="50" style={{marginBottom:'10px'}}/>
+                <div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#F59E0B'}}>{paciente.gold || 0}</div>
+                <div style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>FONDOS</div>
+           </div>
+           <div onClick={() => setSelectedResource({ type: 'nexo', value: paciente.nexo || 0 })} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', cursor:'pointer', border:'1px solid rgba(139, 92, 246, 0.3)'}}>
+                <img src={STATS_CONFIG.nexo.icon} width="50" style={{marginBottom:'10px'}}/>
+                <div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#8B5CF6'}}>{paciente.nexo || 0}</div>
+                <div style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>NEXOS</div>
+           </div>
+           <div onClick={() => setSelectedResource({ type: 'vitalidad', value: paciente.stats?.vitalidad || 0 })} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', cursor:'pointer', border:'1px solid rgba(255,255,255,0.1)'}}>
+                <img src={STATS_CONFIG.vitalidad.icon} width="50" style={{marginBottom:'10px'}}/>
+                <div style={{fontSize:'1.5rem', fontWeight:'bold', color:'white'}}>{paciente.stats?.vitalidad ? Number(paciente.stats.vitalidad).toFixed(1) : 0}</div>
+           </div>
+           <div onClick={() => setSelectedResource({ type: 'sabiduria', value: paciente.stats?.sabiduria || 0 })} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', cursor:'pointer', border:'1px solid rgba(255,255,255,0.1)'}}>
+                <img src={STATS_CONFIG.sabiduria.icon} width="50" style={{marginBottom:'10px'}}/>
+                <div style={{fontSize:'1.5rem', fontWeight:'bold', color:'white'}}>{paciente.stats?.sabiduria ? Number(paciente.stats.sabiduria).toFixed(1) : 0}</div>
+           </div>
+           <div onClick={() => setSelectedResource({ type: 'vinculacion', value: paciente.stats?.vinculacion || 0 })} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', cursor:'pointer', border:'1px solid rgba(255,255,255,0.1)'}}>
+                <img src={STATS_CONFIG.vinculacion.icon} width="50" style={{marginBottom:'10px'}}/>
+                <div style={{fontSize:'1.5rem', fontWeight:'bold', color:'white'}}>{paciente.stats?.vinculacion ? Number(paciente.stats.vinculacion).toFixed(1) : 0}</div>
+           </div>
+      </div>
+
       {analizarBalance()}
 
       {/* ================= SECCIÓN DE HÁBITOS ================= */}
@@ -278,6 +329,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                             animation: inactivo ? 'pulseBorder 2s infinite' : 'none'
                         }}>
                             {inactivo && <div style={{position:'absolute', top:-10, right:20, background:'#EF4444', color:'white', fontSize:'0.7rem', padding:'2px 8px', borderRadius:'4px', fontWeight:'bold'}}>SIN ACTIVIDAD</div>}
+                            
                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
                                 <div style={{flex: 1}}>
                                     <div style={{display:'flex', alignItems:'center', gap:'15px', marginBottom:'5px'}}>
@@ -290,10 +342,17 @@ export function PanelPsicologo({ userData, userUid }: any) {
                                         </div>
                                     </div>
                                     <div style={{fontSize:'0.9rem', color:'var(--text-muted)'}}>{diasLogrados}/{meta} Cumplidos</div>
+                                    
+                                    {/* VISOR DE COMENTARIOS (BITÁCORA) */}
                                     {diasConComentario.length > 0 && (
                                         <div style={{marginTop:'10px', background:'rgba(0,0,0,0.3)', padding:'10px', borderRadius:'8px'}}>
-                                            <div style={{fontSize:'0.7rem', color:'var(--secondary)', marginBottom:'5px', textTransform:'uppercase'}}>📝 Bitácora:</div>
-                                            {diasConComentario.map(dia => (<div key={dia} style={{fontSize:'0.85rem', color:'white', marginBottom:'3px'}}><span style={{color:'var(--text-muted)', fontWeight:'bold'}}>{dia}: </span><i>"{comentarios[dia]}"</i></div>))}
+                                            <div style={{fontSize:'0.7rem', color:'var(--secondary)', marginBottom:'5px', textTransform:'uppercase'}}>📝 Bitácora del Paciente:</div>
+                                            {diasConComentario.map(dia => (
+                                                <div key={dia} style={{fontSize:'0.85rem', color:'white', marginBottom:'3px'}}>
+                                                    <span style={{color:'var(--text-muted)', fontWeight:'bold'}}>{dia}: </span> 
+                                                    <i>"{comentarios[dia]}"</i>
+                                                </div>
+                                            ))}
                                         </div>
                                     )}
                                 </div>
