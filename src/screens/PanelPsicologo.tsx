@@ -53,11 +53,11 @@ export function PanelPsicologo({ userData, userUid }: any) {
       nombreReal: "", telefono: "", fechaNacimiento: "", contactoEmergencia: "", diagnostico: "", medicacion: ""
   });
   const [nuevaNota, setNuevaNota] = useState("");
-  const [fechaNota, setFechaNota] = useState(new Date().toISOString().split('T')[0]); // Fecha de hoy por defecto
+  const [fechaNota, setFechaNota] = useState(new Date().toISOString().split('T')[0]); 
   
   const [selectedResource, setSelectedResource] = useState<any>(null);
 
-  // 1. CARGA INICIAL (LISTA PACIENTES)
+  // 1. CARGA INICIAL
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "users", userUid, "pacientes"), (s) => {
         setPacientes(s.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -65,11 +65,11 @@ export function PanelPsicologo({ userData, userUid }: any) {
     return () => unsub();
   }, [userUid]);
 
-  // 2. CARGA DE DATOS DEL PACIENTE SELECCIONADO
+  // 2. DETALLE PACIENTE
   useEffect(() => {
     if (!pacienteSeleccionado) return;
     
-    // A) Perfil y Expediente
+    // A) Perfil
     const unsubPerfil = onSnapshot(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), (s) => {
         if(s.exists()) {
             const data = s.data();
@@ -81,11 +81,11 @@ export function PanelPsicologo({ userData, userUid }: any) {
         }
     });
 
-    // B) Colecciones del Juego (Hábitos y Misiones)
+    // B) Colecciones del Juego
     const unsubH = onSnapshot(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "habitos"), (s) => setHabitos(s.docs.map(d => ({id:d.id, ...d.data()}))));
     const unsubM = onSnapshot(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "misiones"), (s) => setMisiones(s.docs.map(d => ({id:d.id, ...d.data()}))));
     
-    // C) Notas Clínicas (Orden Descendente)
+    // C) Notas Clínicas
     const qNotas = query(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "notas_clinicas"), orderBy("createdAt", "desc"));
     const unsubN = onSnapshot(qNotas, (s) => setNotasClinicas(s.docs.map(d => ({id:d.id, ...d.data()}))));
 
@@ -105,17 +105,13 @@ export function PanelPsicologo({ userData, userUid }: any) {
       return edad + " años";
   };
 
-  // --- FUNCIONES: NOTAS CLÍNICAS ---
   const guardarNota = async () => {
       if(!nuevaNota.trim()) return;
-      
       const fechaSeleccionada = new Date(fechaNota);
       fechaSeleccionada.setHours(12, 0, 0, 0); 
 
       await addDoc(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "notas_clinicas"), {
-          contenido: nuevaNota,
-          createdAt: fechaSeleccionada,
-          autor: userUid
+          contenido: nuevaNota, createdAt: fechaSeleccionada, autor: userUid
       });
       setNuevaNota("");
       setFechaNota(new Date().toISOString().split('T')[0]); 
@@ -131,7 +127,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
       document.body.appendChild(element); element.click(); document.body.removeChild(element);
   };
 
-  // --- FUNCIONES: JUEGO (MISIONES/HABITOS) ---
   const toggleRecompensa = (t: string) => recompensas.includes(t) ? setRecompensas(recompensas.filter(r => r !== t)) : setRecompensas([...recompensas, t]);
   
   const guardarHabito = async () => {
@@ -161,7 +156,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
       if(confirm("⚠️ ¿ELIMINAR TOTALMENTE?")) await deleteDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "habitos", id));
   };
 
-  // Misiones
   const addSub = () => { if(newSubText) { setQuestSubs([...questSubs, {id:Date.now(), texto:newSubText, completado:false}]); setNewSubText(""); }};
   const guardarQuest = async () => {
       if (!questTitulo) return alert("Faltan datos");
@@ -179,10 +173,8 @@ export function PanelPsicologo({ userData, userUid }: any) {
       await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), { nexo: increment(1), xp: increment(500) });
   };
 
-  // Helpers
-  const contarDias = (reg: any) => Object.values(reg || {}).filter(v => v === true).length;
   const tieneInteraccion = (habito: any) => {
-      const checks = contarDias(habito.registro) > 0;
+      const checks = Object.values(habito.registro || {}).filter(v => v === true).length > 0;
       const comments = Object.keys(habito.comentariosSemana || {}).length > 0;
       return checks || comments;
   };
@@ -200,34 +192,27 @@ export function PanelPsicologo({ userData, userUid }: any) {
       if (stats.vitalidad === 0) faltantes.push("INTEGRIDAD");
       if (stats.sabiduria === 0) faltantes.push("I+D");
       if (stats.vinculacion === 0) faltantes.push("VINCULACIÓN");
-      
       if (faltantes.length > 0) return <div style={{background:'rgba(245,158,11,0.1)', border:'1px solid #F59E0B', color:'#F59E0B', padding:'15px', borderRadius:'12px', marginBottom:'20px', fontSize:'1rem'}}>⚠️ <strong>Balance:</strong> Faltan actividades de <b>{faltantes.join(", ")}</b>.</div>;
       return null;
   };
 
   // --- RENDERIZADO ---
 
-  // VISTA 1: BUSCADOR DE PACIENTES (AUTOCOMPLETE)
   if (!pacienteSeleccionado) {
       const hayBusqueda = busqueda.trim().length > 0;
       const filtrados = hayBusqueda ? pacientes.filter(p => p.displayName.toLowerCase().includes(busqueda.toLowerCase())) : [];
 
       return (
         <div style={{textAlign: 'left', maxWidth:'800px', margin:'0 auto'}}>
-            {/* HEADER */}
             <div style={{background: 'var(--bg-card)', padding: '30px', borderRadius: '20px', marginBottom: '30px', border: 'var(--glass-border)', textAlign:'center', boxShadow:'0 10px 40px rgba(0,0,0,0.5)'}}>
                 <img src="/psicologo.png" style={{width:'80px', height:'80px', borderRadius:'50%', border:'3px solid var(--primary)', objectFit:'cover', marginBottom:'15px'}} />
                 <h3 style={{margin:0, color: 'var(--primary)', fontFamily:'Rajdhani', fontSize:'2rem', letterSpacing:'2px'}}>CENTRO DE MANDO</h3>
                 <p style={{margin:'5px 0 0 0', color:'var(--text-muted)'}}>Código de Vinculación: <strong style={{color:'white', fontSize:'1.2rem'}}>{userData.codigoVinculacion}</strong></p>
             </div>
-
-            {/* BUSCADOR */}
             <div style={{position:'relative', marginBottom:'30px'}}>
                 <input type="text" placeholder="Escribe el nombre del paciente para iniciar conexión..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{width:'100%', padding:'20px 20px 20px 50px', borderRadius:'15px', background:'rgba(30, 41, 59, 0.8)', border:'1px solid rgba(255,255,255,0.1)', color:'white', fontSize:'1.2rem', boxShadow:'0 4px 20px rgba(0,0,0,0.3)', outline:'none'}} />
                 <span style={{position:'absolute', left:'20px', top:'50%', transform:'translateY(-50%)', fontSize:'1.5rem'}}>🔍</span>
             </div>
-            
-            {/* RESULTADOS */}
             {hayBusqueda && (
                 <div style={{display: 'grid', gap: '15px', animation:'fadeIn 0.3s'}}>
                     {filtrados.length === 0 ? <p style={{textAlign:'center', color:'gray'}}>No se encontraron expedientes.</p> : filtrados.map(p => {
@@ -252,7 +237,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
       );
   }
 
-  // --- VISTA 2: PANEL DE CONTROL ---
   const paciente = datosLive || pacienteSeleccionado;
   const avatarDef = PERSONAJES[paciente.avatarKey as PersonajeTipo] || PERSONAJES['atlas'];
   const nivel = obtenerNivel(paciente.xp || 0);
@@ -272,7 +256,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
            </div>
       )}
 
-       {/* HEADER */}
        <button onClick={() => setPacienteSeleccionado(null)} style={{background:'none', border:'none', color:'var(--text-muted)', marginBottom:'20px', cursor:'pointer'}}>⬅ VOLVER</button>
        
        <div style={{background: 'linear-gradient(90deg, #0f172a 0%, #1e293b 100%)', padding: '20px', borderRadius: '16px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.1)', display:'flex', alignItems:'center', gap:'20px'}}>
@@ -290,40 +273,19 @@ export function PanelPsicologo({ userData, userUid }: any) {
            <button onClick={() => setActiveTab('gestion')} style={{padding:'10px 20px', background: activeTab === 'gestion' ? '#F59E0B' : 'transparent', color: activeTab === 'gestion' ? 'black' : 'white', border:'none', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', display:'flex', gap:'5px', alignItems:'center'}}><IconTools/> GESTIÓN</button>
        </div>
 
-       {/* 1. TABLERO */}
        {activeTab === 'tablero' && (
            <div style={{animation:'fadeIn 0.3s'}}>
                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(100px, 1fr))', gap:'15px', marginBottom:'30px'}}>
-                   <div onClick={() => setSelectedResource({type:'gold', value: paciente.gold})} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(245, 158, 11, 0.3)', cursor:'pointer'}}>
-                        <img src={STATS_CONFIG.gold.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} />
-                        <div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#F59E0B'}}>{paciente.gold || 0}</div>
-                        <div style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>FONDOS</div>
-                   </div>
-                   <div onClick={() => setSelectedResource({type:'nexo', value: paciente.nexo})} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(139, 92, 246, 0.3)', cursor:'pointer'}}>
-                        <img src={STATS_CONFIG.nexo.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} />
-                        <div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#8B5CF6'}}>{paciente.nexo || 0}</div>
-                        <div style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>NEXOS</div>
-                   </div>
-                   {['vitalidad','sabiduria','vinculacion'].map(stat => (
-                       <div key={stat} onClick={() => setSelectedResource({type:stat, value: paciente.stats?.[stat]})} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', cursor:'pointer'}}>
-                           {/* @ts-ignore */}
-                           <img src={STATS_CONFIG[stat].icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} />
-                           {/* @ts-ignore */}
-                           <div style={{fontSize:'1.5rem', fontWeight:'bold', color:'white'}}>{Number(paciente.stats?.[stat] || 0).toFixed(1)}</div>
-                           {/* @ts-ignore */}
-                           <div style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>{STATS_CONFIG[stat].label}</div>
-                       </div>
-                   ))}
+                   <div onClick={() => setSelectedResource({type:'gold', value: paciente.gold})} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(245, 158, 11, 0.3)', cursor:'pointer'}}><img src={STATS_CONFIG.gold.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} /><div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#F59E0B'}}>{paciente.gold || 0}</div><div style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>FONDOS</div></div>
+                   <div onClick={() => setSelectedResource({type:'nexo', value: paciente.nexo})} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(139, 92, 246, 0.3)', cursor:'pointer'}}><img src={STATS_CONFIG.nexo.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} /><div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#8B5CF6'}}>{paciente.nexo || 0}</div><div style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>NEXOS</div></div>
+                   {['vitalidad','sabiduria','vinculacion'].map(stat => (<div key={stat} onClick={() => setSelectedResource({type:stat, value: paciente.stats?.[stat]})} style={{background:'rgba(255,255,255,0.05)', padding:'15px', borderRadius:'12px', textAlign:'center', cursor:'pointer'}}>{/* @ts-ignore */}<img src={STATS_CONFIG[stat].icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} />{/* @ts-ignore */}<div style={{fontSize:'1.5rem', fontWeight:'bold', color:'white'}}>{Number(paciente.stats?.[stat] || 0).toFixed(1)}</div>{/* @ts-ignore */}<div style={{fontSize:'0.7rem', color:'var(--text-muted)'}}>{STATS_CONFIG[stat].label}</div></div>))}
                </div>
                {analizarBalance()}
                <h3 style={{marginTop:0, color:'white', fontFamily:'Rajdhani'}}>RESUMEN DE HOY</h3>
-               <div style={{padding:'20px', background:'rgba(255,255,255,0.05)', borderRadius:'12px'}}>
-                   <div style={{fontSize:'1.1rem', color:'white'}}>Protocolos completados: <strong style={{color:'var(--primary)'}}>{habitos.filter(h => { const today = new Date().getDay(); const dias = ["D","L","M","X","J","V","S"]; return h.registro?.[dias[today]] === true; }).length}</strong> / {habitos.filter(h => h.estado !== 'archivado').length}</div>
-               </div>
+               <div style={{padding:'20px', background:'rgba(255,255,255,0.05)', borderRadius:'12px'}}><div style={{fontSize:'1.1rem', color:'white'}}>Protocolos completados: <strong style={{color:'var(--primary)'}}>{habitos.filter(h => { const today = new Date().getDay(); const dias = ["D","L","M","X","J","V","S"]; return h.registro?.[dias[today]] === true; }).length}</strong> / {habitos.filter(h => h.estado !== 'archivado').length}</div></div>
            </div>
        )}
 
-       {/* 2. EXPEDIENTE */}
        {activeTab === 'expediente' && (
            <div style={{animation:'fadeIn 0.3s', maxWidth:'600px'}}>
                <h3 style={{color:'var(--secondary)', borderBottom:'1px solid var(--secondary)', paddingBottom:'10px', marginTop:0}}>DATOS PERSONALES (PRIVADO)</h3>
@@ -340,24 +302,18 @@ export function PanelPsicologo({ userData, userUid }: any) {
            </div>
        )}
 
-       {/* 3. NOTAS (VERTICAL FORM) */}
        {activeTab === 'notas' && (
            <div style={{animation:'fadeIn 0.3s'}}>
                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                    <h3 style={{margin:0, color:'white'}}>BITÁCORA DE SESIÓN</h3>
                    <button onClick={exportarHistorial} style={{background:'none', border:'1px solid white', color:'white', padding:'8px 15px', borderRadius:'8px', cursor:'pointer', fontSize:'0.8rem', display:'flex', gap:'5px', alignItems:'center'}}><IconDownload/> EXPORTAR TXT</button>
                </div>
-               
                <div style={{background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '16px', marginBottom: '30px', border: '1px solid rgba(255,255,255,0.1)'}}>
                     <h4 style={{margin:'0 0 15px 0', color:'var(--secondary)'}}>NUEVA ENTRADA</h4>
-                    <div style={{marginBottom:'15px'}}>
-                        <label style={{fontSize:'0.8rem', color:'gray', display:'block', marginBottom:'5px'}}>FECHA DEL REGISTRO</label>
-                        <input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{padding:'10px', borderRadius:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', fontFamily:'inherit'}} />
-                    </div>
+                    <div style={{marginBottom:'15px'}}><label style={{fontSize:'0.8rem', color:'gray', display:'block', marginBottom:'5px'}}>FECHA DEL REGISTRO</label><input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{padding:'10px', borderRadius:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', color:'white', fontFamily:'inherit'}} /></div>
                     <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)} placeholder="Escribe la evolución clínica, observaciones o bitácora de sesión..." style={{width:'100%', height:'120px', padding:'15px', borderRadius:'10px', background:'rgba(0,0,0,0.3)', color:'white', border:'1px solid rgba(255,255,255,0.2)', fontFamily:'inherit', marginBottom:'15px', resize:'vertical'}} />
                     <div style={{textAlign:'right'}}><button onClick={guardarNota} className="btn-primary" style={{padding:'10px 30px'}}>GUARDAR NOTA</button></div>
                </div>
-
                <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
                    {notasClinicas.map(nota => (
                        <div key={nota.id} style={{background:'rgba(255,255,255,0.03)', padding:'20px', borderRadius:'12px', borderLeft:'4px solid #8B5CF6'}}>
@@ -369,7 +325,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
            </div>
        )}
 
-       {/* 4. GESTIÓN */}
        {activeTab === 'gestion' && (
            <div style={{animation:'fadeIn 0.3s'}}>
                <div style={{marginBottom:'40px'}}>
@@ -406,25 +361,38 @@ export function PanelPsicologo({ userData, userUid }: any) {
                                 <div key={h.id} style={{
                                     background: 'rgba(255,255,255,0.03)', padding:'15px', borderRadius:'12px', 
                                     border: h.estado==='archivado'?'1px dashed gray': (inactivo ? '1px solid #EF4444' : '1px solid rgba(255,255,255,0.1)'), 
-                                    opacity:h.estado==='archivado'?0.6:1, display:'flex', justifyContent:'space-between', position:'relative',
+                                    opacity:h.estado==='archivado'?0.6:1, position:'relative',
                                     boxShadow: inactivo ? '0 0 10px rgba(239, 68, 68, 0.2)' : 'none'
                                 }}>
                                     {inactivo && <div style={{position:'absolute', top:-8, right:10, background:'#EF4444', fontSize:'0.6rem', padding:'2px 6px', borderRadius:'4px', fontWeight:'bold', color:'white'}}>SIN ACTIVIDAD</div>}
-                                    <div>
-                                        <div style={{fontWeight:'bold', color:'white'}}>{h.titulo} <span style={{fontSize:'0.8rem', color:'gray'}}>({h.frecuenciaMeta}/sem)</span></div>
-                                        <div style={{display:'flex', gap:'5px', marginTop:'5px'}}>
-                                            {h.recompensas?.map((r: string) => (
-                                                // @ts-ignore
-                                                <img key={r} src={STATS_CONFIG[r]?.icon} title={STATS_CONFIG[r]?.label} style={{width:'20px', height:'20px', objectFit:'contain'}} />
+                                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                                        <div>
+                                            <div style={{fontWeight:'bold', color:'white'}}>{h.titulo} <span style={{fontSize:'0.8rem', color:'gray'}}>({h.frecuenciaMeta}/sem)</span></div>
+                                            <div style={{display:'flex', gap:'5px', marginTop:'5px'}}>
+                                                {h.recompensas?.map((r: string) => (
+                                                    // @ts-ignore
+                                                    <img key={r} src={STATS_CONFIG[r]?.icon} title={STATS_CONFIG[r]?.label} style={{width:'20px', height:'20px', objectFit:'contain'}} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div style={{display:'flex', gap:'10px'}}>
+                                            <button onClick={() => cargarParaEditar(h)} style={{background:'none', border:'none', color:'var(--primary)', cursor:'pointer'}}><IconEdit/></button>
+                                            <button onClick={() => archivarHabito(h.id, h.estado)} style={{background:'none', border:'none', color:'white', cursor:'pointer'}}><IconMedal/></button>
+                                            <button onClick={() => eliminarHabito(h.id)} style={{background:'none', border:'none', color:'#EF4444', cursor:'pointer'}}><IconTrash/></button>
+                                        </div>
+                                    </div>
+                                    {/* SECCIÓN DE BITÁCORA CORREGIDA */}
+                                    {h.comentariosSemana && Object.keys(h.comentariosSemana).length > 0 && (
+                                        <div style={{marginTop:'10px', background:'rgba(0,0,0,0.4)', padding:'10px', borderRadius:'8px'}}>
+                                            <div style={{fontSize:'0.7rem', color:'#FBBF24', marginBottom:'5px', fontWeight:'bold'}}>📝 BITÁCORA DEL PACIENTE:</div>
+                                            {Object.entries(h.comentariosSemana).map(([dia, nota]:any) => (
+                                                <div key={dia} style={{fontSize:'0.85rem', color:'white', marginBottom:'4px'}}>
+                                                    <span style={{color:'var(--text-muted)', fontWeight:'bold'}}>{dia}: </span> 
+                                                    <span style={{fontStyle:'italic'}}>"{nota}"</span>
+                                                </div>
                                             ))}
                                         </div>
-                                        {h.comentariosSemana && Object.keys(h.comentariosSemana).length > 0 && <div style={{fontSize:'0.8rem', color:'var(--secondary)', marginTop:'5px'}}>📝 {Object.keys(h.comentariosSemana).length} notas recientes</div>}
-                                    </div>
-                                    <div style={{display:'flex', gap:'10px'}}>
-                                        <button onClick={() => cargarParaEditar(h)} style={{background:'none', border:'none', color:'var(--primary)', cursor:'pointer'}}><IconEdit/></button>
-                                        <button onClick={() => archivarHabito(h.id, h.estado)} style={{background:'none', border:'none', color:'white', cursor:'pointer'}}><IconMedal/></button>
-                                        <button onClick={() => eliminarHabito(h.id)} style={{background:'none', border:'none', color:'#EF4444', cursor:'pointer'}}><IconTrash/></button>
-                                    </div>
+                                    )}
                                 </div>
                                 );
                             })}
