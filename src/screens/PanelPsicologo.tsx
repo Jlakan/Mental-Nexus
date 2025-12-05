@@ -6,6 +6,7 @@ import { STATS_CONFIG, StatTipo, PERSONAJES, PersonajeTipo, obtenerEtapaActual, 
 // --- IMPORTACIÓN DE MÓDULOS DE PRUEBAS ---
 import { ClinicalTestsScreen } from './ClinicalTestsScreen'; // El test DIVA real
 import { TestCatalog } from './TestCatalog'; // El catálogo de selección
+import { BeckTestScreen } from './BeckTestScreen';
 
 // --- ICONOS ---
 const IconDashboard = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>;
@@ -44,7 +45,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
   
   // --- NAVEGACIÓN DE PRUEBAS CLÍNICAS ---
   // Estados posibles: 'panel' (normal) | 'catalog' (menú) | 'diva5' (ejecutando)
-  const [currentView, setCurrentView] = useState<'panel' | 'catalog' | 'diva5'>('panel');
+  const [currentView, setCurrentView] = useState<'panel' | 'catalog' | 'diva5' | 'beck'>('panel'); // Agregamos 'beck'
 
   // FORMULARIOS
   const [tituloHabito, setTituloHabito] = useState("");
@@ -98,10 +99,12 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const guardarExpediente = async () => { try { await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), perfilReal); alert("Guardado."); } catch (e) { alert("Error."); } };
   const calcularEdad = (f: string) => { if(!f) return "--"; const h=new Date(); const n=new Date(f); let e=h.getFullYear()-n.getFullYear(); if(h.getMonth()<n.getMonth()) e--; return e+" años"; };
   
-  // FUNCIÓN: GESTOR DE SELECCIÓN DE TEST
-  const handleSelectTest = (testId: string) => {
+ // FUNCIÓN: GESTOR DE SELECCIÓN DE TEST
+ const handleSelectTest = (testId: string) => {
     if (testId === 'diva5') {
         setCurrentView('diva5');
+    } else if (testId === 'beck_anxiety') { // <--- NUEVO CASO
+        setCurrentView('beck');
     } else {
         alert("Este módulo aún no está instalado en el sistema.");
     }
@@ -240,7 +243,17 @@ export function PanelPsicologo({ userData, userUid }: any) {
       </div>
     );
   }
-
+// 3. MODO EJECUCIÓN BECK (BAI)
+if (currentView === 'beck') {
+    return (
+      <div style={{animation: 'fadeIn 0.3s'}}>
+        <BeckTestScreen 
+          onFinish={finalizarDiva} // Reutilizamos la misma función de guardado (sirve igual)
+          onCancel={() => setCurrentView('catalog')} 
+        />
+      </div>
+    );
+  }
   // 3. MODO PANEL NORMAL (Si no hay pruebas activas)
   if (!pacienteSeleccionado) {
       const filtrados = busqueda ? pacientes.filter(p => p.displayName.toLowerCase().includes(busqueda.toLowerCase())) : [];

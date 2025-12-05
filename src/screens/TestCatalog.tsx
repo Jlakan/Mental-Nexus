@@ -13,14 +13,11 @@ const AVAILABLE_TESTS = [
     tags: ['TDAH', 'DSM-5', 'Oficial'],
     active: true // Está listo para usarse
   },
-  {
-    id: 'beck_anxiety',
+ {
+    id: 'beck_anxiety', // Asegúrate de que el ID sea este
     title: 'INVENTARIO DE BECK (BAI)',
-    subtitle: 'Evaluación de Ansiedad',
-    description: 'Cuestionario de auto-reporte para medir la severidad de la ansiedad en adultos y adolescentes.',
-    duration: '10-15 min',
-    tags: ['Ansiedad', 'Screening'],
-    active: false // Aún no programado (aparecerá bloqueado)
+    // ... resto de datos ...
+    active: true // <--- CAMBIAR DE false A true
   },
   {
     id: 'phq9',
