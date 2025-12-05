@@ -5,7 +5,7 @@ import { STATS_CONFIG, StatTipo, PERSONAJES, PersonajeTipo, obtenerEtapaActual, 
 
 // --- IMPORTACIÓN DE MÓDULOS DE PRUEBAS ---
 import { ClinicalTestsScreen } from './ClinicalTestsScreen'; // El test DIVA real
-import { TestCatalog } from './TestCatalog'; // El nuevo catálogo
+import { TestCatalog } from './TestCatalog'; // El catálogo de selección
 
 // --- ICONOS ---
 const IconDashboard = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>;
@@ -42,8 +42,8 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const [showHabits, setShowHabits] = useState(true);
   const [showQuests, setShowQuests] = useState(false);
   
-  // --- NAVEGACIÓN DE PRUEBAS CLÍNICAS (NUEVO) ---
-  // Estados posibles: 'panel' (normal) | 'catalog' (menú) | 'diva5' (ejecutando) | 'otros...'
+  // --- NAVEGACIÓN DE PRUEBAS CLÍNICAS ---
+  // Estados posibles: 'panel' (normal) | 'catalog' (menú) | 'diva5' (ejecutando)
   const [currentView, setCurrentView] = useState<'panel' | 'catalog' | 'diva5'>('panel');
 
   // FORMULARIOS
@@ -98,7 +98,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const guardarExpediente = async () => { try { await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), perfilReal); alert("Guardado."); } catch (e) { alert("Error."); } };
   const calcularEdad = (f: string) => { if(!f) return "--"; const h=new Date(); const n=new Date(f); let e=h.getFullYear()-n.getFullYear(); if(h.getMonth()<n.getMonth()) e--; return e+" años"; };
   
-  // FUNCIÓN: GESTOR DE SELECCIÓN DE TEST (NUEVO)
+  // FUNCIÓN: GESTOR DE SELECCIÓN DE TEST
   const handleSelectTest = (testId: string) => {
     if (testId === 'diva5') {
         setCurrentView('diva5');
@@ -114,9 +114,9 @@ export function PanelPsicologo({ userData, userUid }: any) {
       
       // Guardamos como nota clínica automática
       await addDoc(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "notas_clinicas"), {
-          contenido: informeTexto, 
-          datosBrutos: data.raw,   
-          resumen: data.resumen,   
+          contenido: informeTexto, // Guardamos el resumen legible
+          datosBrutos: data.raw,   // Opcional: Guardamos el JSON crudo por si quieres hacer estadísticas luego
+          resumen: data.resumen,   // Opcional: Los conteos numéricos
           createdAt: new Date(),
           autor: userUid,
           tipo: 'evaluacion_diva',
@@ -125,7 +125,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
       // Feedback y redirección
       setCurrentView('panel'); // Volvemos al panel
-      setActiveTab('notas');   // Vamos a notas
+      setActiveTab('notas');   // Vamos a notas para ver el resultado
       
     } catch (e) {
       console.error(e);
@@ -215,29 +215,8 @@ export function PanelPsicologo({ userData, userUid }: any) {
       }
   };
 
-  // --- RENDER DE VISTAS (INTERCEPTORES) ---
-  if (!pacienteSeleccionado) {
-      const filtrados = busqueda ? pacientes.filter(p => p.displayName.toLowerCase().includes(busqueda.toLowerCase())) : [];
-      return (
-        <div style={{textAlign:'left', maxWidth:'800px', margin:'0 auto'}}>
-            {/* ... (tu código de búsqueda de pacientes se mantiene igual) ... */}
-            <div style={{background:'rgba(15, 23, 42, 0.6)', padding:'30px', borderRadius:'20px', marginBottom:'30px', border:'1px solid rgba(148, 163, 184, 0.1)', textAlign:'center'}}>
-                <h3 style={{margin:0, color:'#F8FAFC', fontSize:'2rem', letterSpacing:'2px'}}>CENTRO DE MANDO</h3>
-            </div>
-            <div style={{position:'relative', marginBottom:'30px'}}>
-                <input type="text" placeholder="Buscar paciente..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{width:'100%', padding:'20px 20px 20px 50px', borderRadius:'15px', background:'rgba(30, 41, 59, 0.8)', border:'1px solid rgba(148, 163, 184, 0.2)', color:'white', fontSize:'1.2rem', outline:'none'}} />
-                <span style={{position:'absolute', left:'20px', top:'50%', transform:'translateY(-50%)', fontSize:'1.5rem'}}>🔍</span>
-            </div>
-            {busqueda && <div style={{display:'grid', gap:'15px'}}>{filtrados.map(p => (
-                <div key={p.id} onClick={() => p.isAuthorized && setPacienteSeleccionado(p)} style={{background:'rgba(30, 41, 59, 0.6)', border:'1px solid rgba(148, 163, 184, 0.1)', padding:'15px', borderRadius:'12px', cursor:p.isAuthorized?'pointer':'default', display:'flex', alignItems:'center', gap:'20px'}}>
-                    <div style={{fontWeight:'bold', color:'#E2E8F0', fontSize:'1.2rem', flex:1}}>{p.displayName}</div>
-                    {p.isAuthorized ? <span style={{color:'#10B981'}}>● ACTIVO</span> : <button onClick={(e)=>{e.stopPropagation(); updateDoc(doc(db,"users",userUid,"pacientes",p.id),{isAuthorized:true})}} style={{padding:'5px 10px', background:'var(--primary)', border:'none', borderRadius:'5px', cursor:'pointer'}}>AUTORIZAR</button>}
-                </div>
-            ))}</div>}
-        </div>
-      );
-  }
-
+  // --- INTERCEPTORES DE VISTA (MODOS DE PRUEBA) ---
+  
   // 1. MODO CATÁLOGO DE PRUEBAS
   if (currentView === 'catalog') {
     return (
@@ -262,6 +241,29 @@ export function PanelPsicologo({ userData, userUid }: any) {
     );
   }
 
+  // 3. MODO PANEL NORMAL (Si no hay pruebas activas)
+  if (!pacienteSeleccionado) {
+      const filtrados = busqueda ? pacientes.filter(p => p.displayName.toLowerCase().includes(busqueda.toLowerCase())) : [];
+      return (
+        <div style={{textAlign:'left', maxWidth:'800px', margin:'0 auto'}}>
+            {/* ... BUSQUEDA PACIENTES ... */}
+            <div style={{background:'rgba(15, 23, 42, 0.6)', padding:'30px', borderRadius:'20px', marginBottom:'30px', border:'1px solid rgba(148, 163, 184, 0.1)', textAlign:'center'}}>
+                <h3 style={{margin:0, color:'#F8FAFC', fontSize:'2rem', letterSpacing:'2px'}}>CENTRO DE MANDO</h3>
+            </div>
+            <div style={{position:'relative', marginBottom:'30px'}}>
+                <input type="text" placeholder="Buscar paciente..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{width:'100%', padding:'20px 20px 20px 50px', borderRadius:'15px', background:'rgba(30, 41, 59, 0.8)', border:'1px solid rgba(148, 163, 184, 0.2)', color:'white', fontSize:'1.2rem', outline:'none'}} />
+                <span style={{position:'absolute', left:'20px', top:'50%', transform:'translateY(-50%)', fontSize:'1.5rem'}}>🔍</span>
+            </div>
+            {busqueda && <div style={{display:'grid', gap:'15px'}}>{filtrados.map(p => (
+                <div key={p.id} onClick={() => p.isAuthorized && setPacienteSeleccionado(p)} style={{background:'rgba(30, 41, 59, 0.6)', border:'1px solid rgba(148, 163, 184, 0.1)', padding:'15px', borderRadius:'12px', cursor:p.isAuthorized?'pointer':'default', display:'flex', alignItems:'center', gap:'20px'}}>
+                    <div style={{fontWeight:'bold', color:'#E2E8F0', fontSize:'1.2rem', flex:1}}>{p.displayName}</div>
+                    {p.isAuthorized ? <span style={{color:'#10B981'}}>● ACTIVO</span> : <button onClick={(e)=>{e.stopPropagation(); updateDoc(doc(db,"users",userUid,"pacientes",p.id),{isAuthorized:true})}} style={{padding:'5px 10px', background:'var(--primary)', border:'none', borderRadius:'5px', cursor:'pointer'}}>AUTORIZAR</button>}
+                </div>
+            ))}</div>}
+        </div>
+      );
+  }
+
   const paciente = datosLive || pacienteSeleccionado;
   const nivel = obtenerNivel(paciente.xp || 0);
   const etapa = obtenerEtapaActual(PERSONAJES[paciente.avatarKey as PersonajeTipo]||PERSONAJES['atlas'], nivel);
@@ -269,7 +271,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
   return (
     <div style={{textAlign: 'left', animation: 'fadeIn 0.3s'}}>
        
-       {/* ... (MODALES Y HEADER se mantienen igual) ... */}
+       {/* MODAL HISTORIAL DE NOTAS */}
        {showHistoryModal && (
            <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', zIndex:9999, background:'rgba(15, 23, 42, 0.95)', backdropFilter:'blur(10px)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'20px'}}>
                <div style={{maxWidth:'800px', width:'100%'}}>
@@ -299,6 +301,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
            </div>
        )}
 
+       {/* MODAL RECURSO (STATS) */}
        {selectedResource && (
            <div style={{position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999, background:'rgba(0,0,0,0.85)', backdropFilter:'blur(15px)', display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'}} onClick={() => setSelectedResource(null)}>
                <div style={{background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', padding: '40px', textAlign: 'center', maxWidth: '600px', width:'100%', boxShadow: '0 0 80px rgba(6, 182, 212, 0.15)', display: 'flex', flexDirection: 'column', alignItems: 'center'}} onClick={e => e.stopPropagation()}>
@@ -334,7 +337,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
        {activeTab === 'tablero' && (
            <div style={{animation:'fadeIn 0.3s'}}>
-               {/* ... (tu código del tablero se mantiene igual) ... */}
                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(100px, 1fr))', gap:'15px', marginBottom:'30px'}}>
                    <div onClick={() => setSelectedResource({type:'gold', value: paciente.gold})} style={{background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(148, 163, 184, 0.1)', cursor:'pointer'}}><img src={STATS_CONFIG.gold.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} /><div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#F59E0B'}}>{paciente.gold || 0}</div><div style={{fontSize:'0.7rem', color:'#94A3B8'}}>FONDOS</div></div>
                    <div onClick={() => setSelectedResource({type:'nexo', value: paciente.nexo})} style={{background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(139, 92, 246, 0.3)', cursor:'pointer'}}><img src={STATS_CONFIG.nexo.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} /><div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#8B5CF6'}}>{paciente.nexo || 0}</div><div style={{fontSize:'0.7rem', color:'#94A3B8'}}>NEXOS</div></div>
@@ -349,29 +351,68 @@ export function PanelPsicologo({ userData, userUid }: any) {
        {activeTab === 'expediente' && (
            <div style={{animation:'fadeIn 0.3s', maxWidth:'600px'}}>
                
-               {/* --- NUEVA SECCIÓN DE PRUEBAS --- */}
+               {/* --- NUEVA SECCIÓN DE PRUEBAS (BOTÓN GRÁFICO) --- */}
                <h3 style={{color:'var(--secondary)', borderBottom:'1px solid var(--secondary)', paddingBottom:'10px', marginTop:0}}>HERRAMIENTAS DIAGNÓSTICAS</h3>
-               <div style={{display:'flex', gap:'15px', marginBottom:'30px'}}>
+               
+               <div style={{display:'flex', gap:'20px', marginBottom:'30px'}}>
                    <button 
                      onClick={() => setCurrentView('catalog')} 
+                     onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-5px)';
+                        e.currentTarget.style.borderColor = '#22d3ee';
+                        e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(34, 211, 238, 0.3)';
+                     }}
+                     onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+                        e.currentTarget.style.boxShadow = 'none';
+                     }}
                      style={{
-                       background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
-                       color: 'white',
-                       border: 'none',
-                       padding: '15px 20px',
-                       borderRadius: '12px',
-                       cursor: 'pointer',
+                       background: 'rgba(15, 23, 42, 0.6)', // Fondo oscuro semitransparente
+                       border: '1px solid rgba(148, 163, 184, 0.2)',
+                       borderRadius: '16px',
+                       padding: '20px',
                        display: 'flex',
+                       flexDirection: 'column',
                        alignItems: 'center',
-                       gap: '10px',
-                       fontWeight: 'bold',
-                       boxShadow: '0 4px 6px rgba(37, 99, 235, 0.2)'
+                       gap: '15px',
+                       cursor: 'pointer',
+                       transition: 'all 0.3s ease',
+                       width: '160px', // Tamaño controlado
+                       height: '180px'
                      }}
                    >
-                     <span style={{fontSize:'1.5rem'}}>🧠</span>
-                     <div style={{textAlign:'left'}}>
-                       <div style={{fontSize:'1rem'}}>ASIGNAR PRUEBAS</div>
-                       <div style={{fontSize:'0.7rem', opacity:0.8}}>Catálogo de Protocolos</div>
+                     {/* IMAGEN DEL ICONO */}
+                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <img 
+                            src="/evaluaciones.png" 
+                            alt="Evaluaciones" 
+                            style={{ 
+                                width: '80px', 
+                                height: '80px', 
+                                objectFit: 'contain',
+                                filter: 'drop-shadow(0 0 10px rgba(34,211,238,0.3))' // Resplandor azul al icono
+                            }} 
+                        />
+                     </div>
+
+                     {/* RECUADRO DE TEXTO */}
+                     <div style={{
+                         background: 'rgba(0,0,0,0.3)',
+                         width: '100%',
+                         padding: '8px 0',
+                         borderRadius: '8px',
+                         borderTop: '1px solid rgba(255,255,255,0.05)'
+                     }}>
+                        <span style={{ 
+                            color: '#e2e8f0', 
+                            fontSize: '0.9rem', 
+                            fontFamily: 'Rajdhani', 
+                            fontWeight: 'bold',
+                            letterSpacing: '1px'
+                        }}>
+                            CATÁLOGO
+                        </span>
                      </div>
                    </button>
                </div>
@@ -379,9 +420,9 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
                <h3 style={{color:'var(--secondary)', borderBottom:'1px solid var(--secondary)', paddingBottom:'10px', marginTop:0}}>ENFOQUE PERSONAL (OBJETIVO)</h3>
                <div style={{background:'rgba(236, 72, 153, 0.1)', border:'1px solid rgba(236, 72, 153, 0.3)', padding:'20px', borderRadius:'15px', marginBottom:'30px'}}>
-                   {/* ... (resto del expediente igual) ... */}
                    <h4 style={{margin:'0 0 10px 0', color:'#EC4899', fontFamily:'Rajdhani'}}>OBJETIVO DEL PACIENTE</h4>
                    <p style={{color:'white', fontSize:'1.2rem', fontStyle:'italic'}}>"{paciente.objetivoPersonalData?.titulo || paciente.objetivoPersonal || "No definido"}"</p>
+                   
                    {paciente.objetivoPersonalData?.acciones && (
                        <div style={{marginBottom:'20px', display:'flex', flexWrap:'wrap', gap:'10px'}}>
                            {paciente.objetivoPersonalData.acciones.map((acc:string, i:number) => (
@@ -389,7 +430,24 @@ export function PanelPsicologo({ userData, userUid }: any) {
                            ))}
                        </div>
                    )}
-                   {/* ... resto de componentes expediente ... */}
+
+                   <div style={{marginTop:'20px', maxHeight:'200px', overflowY:'auto'}}>
+                       <h5 style={{color:'#EC4899', margin:'0 0 10px 0'}}>ÚLTIMAS REFLEXIONES</h5>
+                       {reflexionesObjetivo.length === 0 ? <p style={{color:'gray'}}>Sin registros.</p> : (
+                           <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                               {reflexionesObjetivo.map((r, i) => (
+                                   <div key={i} style={{background:'rgba(0,0,0,0.3)', padding:'10px', borderRadius:'8px', borderLeft: r.valoracion==='cerca'?'3px solid #10B981':(r.valoracion==='lejos'?'3px solid #EF4444':'3px solid gray')}}>
+                                       <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.75rem', color:'#94A3B8', marginBottom:'5px'}}>
+                                           <span>{r.createdAt?.seconds ? new Date(r.createdAt.seconds*1000).toLocaleDateString() : "Hoy"}</span>
+                                           <span style={{fontWeight:'bold', color: r.valoracion==='cerca'?'#10B981':(r.valoracion==='lejos'?'#EF4444':'gray')}}>{r.valoracion?.toUpperCase()}</span>
+                                       </div>
+                                       <div style={{color:'#E2E8F0', fontSize:'0.9rem'}}>{r.reflexion}</div>
+                                       {r.accionesCompletadas && r.accionesCompletadas.length > 0 && <div style={{marginTop:'5px', fontSize:'0.8rem', color:'#10B981'}}>✅ {r.accionesCompletadas.join(", ")}</div>}
+                                   </div>
+                               ))}
+                           </div>
+                       )}
+                   </div>
                </div>
 
                <h3 style={{color:'var(--secondary)', borderBottom:'1px solid var(--secondary)', paddingBottom:'10px', marginTop:0}}>DATOS PERSONALES (PRIVADO)</h3>
@@ -407,7 +465,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
        {activeTab === 'notas' && (
            <div style={{animation:'fadeIn 0.3s'}}>
-               {/* ... (tu código de notas se mantiene igual) ... */}
                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                    <h3 style={{margin:0, color:'#F8FAFC'}}>BITÁCORA DE SESIÓN</h3>
                    <div style={{display:'flex', gap:'10px'}}>
@@ -430,7 +487,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
        {activeTab === 'gestion' && (
            <div style={{animation:'fadeIn 0.3s'}}>
-               {/* ... (tu código de gestión se mantiene igual) ... */}
                <div style={{marginBottom:'40px'}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', cursor:'pointer'}} onClick={() => setShowHabits(!showHabits)}>
                       <h3 style={{margin:0, fontFamily:'Rajdhani', color:'#F8FAFC', fontSize:'1.5rem'}}>PROTOCOLOS DIARIOS ({habitos.length})</h3>
@@ -516,44 +572,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
                                 </div>
                                 );
                             })}
-                        </div>
-                      </>
-                  )}
-               </div>
-               
-               <div style={{marginBottom:'40px'}}>
-                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', cursor:'pointer'}} onClick={() => setShowQuests(!showQuests)}>
-                      <h3 style={{margin:0, fontFamily:'Rajdhani', color:'#F8FAFC', fontSize:'1.5rem'}}>MISIONES ({misiones.length})</h3>
-                      {showQuests ? <IconArrowUp /> : <IconArrowDown />}
-                  </div>
-                  {showQuests && (
-                      <>
-                        <div style={{background: 'rgba(15, 23, 42, 0.6)', padding: '20px', borderRadius: '16px', marginBottom: '20px', border: '1px solid rgba(148, 163, 184, 0.1)'}}>
-                             <h4 style={{color: 'var(--secondary)', marginTop:0, fontSize:'1.1rem', marginBottom:'15px'}}>⚔️ NUEVA MISIÓN</h4>
-                             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px'}}>
-                                 <input type="text" value={questTitulo} onChange={e => setQuestTitulo(e.target.value)} placeholder="Título..." style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(148, 163, 184, 0.2)', color:'#E2E8F0', padding:'10px', borderRadius:'8px'}} />
-                                 <input type="date" value={questFecha} onChange={e => setQuestFecha(e.target.value)} style={{background:'rgba(0,0,0,0.3)', border:'1px solid rgba(148, 163, 184, 0.2)', color:'#E2E8F0', padding:'10px', borderRadius:'8px'}} />
-                             </div>
-                             <textarea value={questDesc} onChange={e => setQuestDesc(e.target.value)} placeholder="Descripción..." style={{width:'100%', height:'60px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(148, 163, 184, 0.2)', color:'#E2E8F0', padding:'10px', borderRadius:'8px', fontFamily:'inherit', marginBottom:'10px'}} />
-                             <div style={{marginBottom:'10px'}}>
-                                 <div style={{display:'flex', gap:'10px'}}>
-                                     <input type="text" value={newSubText} onChange={e => setNewSubText(e.target.value)} placeholder="Sub-objetivo..." style={{flex:1, background:'rgba(0,0,0,0.3)', border:'1px solid rgba(148, 163, 184, 0.2)', color:'#E2E8F0', padding:'8px', borderRadius:'8px'}} />
-                                     <button onClick={addSub} style={{background:'var(--secondary)', border:'none', padding:'0 15px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold'}}>+</button>
-                                 </div>
-                                 {questSubs.map(s => <div key={s.id} style={{fontSize:'0.8rem', color:'#94A3B8', marginTop:'5px'}}>• {s.texto} <span onClick={() => setQuestSubs(questSubs.filter(x=>x.id!==s.id))} style={{color:'#EF4444', cursor:'pointer', marginLeft:'5px'}}>x</span></div>)}
-                             </div>
-                             <div style={{display:'flex', justifyContent:'space-between'}}>
-                                 <select value={questDif} onChange={(e:any) => setQuestDif(e.target.value)} style={{background:'black', color:'#E2E8F0', padding:'10px', borderRadius:'8px'}}><option value="facil">Fácil</option><option value="media">Media</option><option value="dificil">Difícil</option></select>
-                                 <button onClick={guardarQuest} className="btn-primary">ASIGNAR</button>
-                             </div>
-                        </div>
-                        <div style={{display:'grid', gap:'10px'}}>
-                            {misiones.map(q => (
-                                <div key={q.id} style={{background:'rgba(30, 41, 59, 0.4)', padding:'15px', borderRadius:'12px', borderLeft:`4px solid ${q.dificultad==='facil'?'#10B981':q.dificultad==='media'?'#F59E0B':'#EF4444'}`, display:'flex', justifyContent:'space-between'}}>
-                                    <div><div style={{color:'#E2E8F0', fontWeight:'bold'}}>{q.titulo}</div><div style={{fontSize:'0.8rem', color:'#94A3B8'}}>{q.estado.toUpperCase()} | Vence: {q.fechaVencimiento}</div></div>
-                                    <button onClick={async() => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id,"misiones",q.id)); }} style={{background:'none', border:'none', color:'#EF4444', cursor:'pointer'}}><IconTrash/></button>
-                                </div>
-                            ))}
                         </div>
                       </>
                   )}
