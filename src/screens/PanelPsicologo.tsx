@@ -7,6 +7,8 @@ import { STATS_CONFIG, StatTipo, PERSONAJES, PersonajeTipo, obtenerEtapaActual, 
 import { ClinicalTestsScreen } from './ClinicalTestsScreen'; // El test DIVA real
 import { TestCatalog } from './TestCatalog'; // El catálogo de selección
 import { BeckTestScreen } from './BeckTestScreen';
+import './PanelPsicologo.css'; // IMPORTAR LOS ESTILOS NUEVOS
+import { DivaResultCard } from '../components/DivaResultCard'; // IMPORTAR EL VISOR
 
 // --- ICONOS ---
 const IconDashboard = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>;
@@ -284,31 +286,42 @@ if (currentView === 'beck') {
   return (
     <div style={{textAlign: 'left', animation: 'fadeIn 0.3s'}}>
        
-       {/* MODAL HISTORIAL DE NOTAS */}
+       {/* MODAL HISTORIAL DE NOTAS (REDDISEÑADO) */}
        {showHistoryModal && (
-           <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', zIndex:9999, background:'rgba(15, 23, 42, 0.95)', backdropFilter:'blur(10px)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'20px'}}>
-               <div style={{maxWidth:'800px', width:'100%'}}>
-                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px', borderBottom:'1px solid rgba(148, 163, 184, 0.3)', paddingBottom:'15px'}}>
-                       <h2 style={{margin:0, color:'#F8FAFC', fontFamily:'Rajdhani'}}>HISTORIAL CLÍNICO</h2>
-                       <button onClick={() => setShowHistoryModal(false)} style={{background:'transparent', border:'1px solid #94A3B8', color:'white', padding:'8px 15px', borderRadius:'8px', cursor:'pointer'}}>CERRAR</button>
+           <div className="modal-overlay">
+               <div className="modal-content">
+                   <div className="modal-header">
+                       <h2 style={{margin:0, color:'#F8FAFC', fontFamily:'Rajdhani', letterSpacing:'2px'}}>HISTORIAL CLÍNICO</h2>
+                       <button onClick={() => setShowHistoryModal(false)} className="btn-ghost" style={{padding:'5px 15px'}}>✕ CERRAR</button>
                    </div>
 
                    {notasClinicas.length > 0 ? (
-                       <div style={{background:'rgba(30, 41, 59, 0.6)', padding:'30px', borderRadius:'16px', border:'1px solid rgba(148, 163, 184, 0.2)'}}>
-                           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+                       <div className="modal-body">
+                           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px'}}>
                                <button onClick={() => setIndiceNota(prev => Math.min(prev + 1, notasClinicas.length - 1))} disabled={indiceNota >= notasClinicas.length - 1} style={{opacity: indiceNota >= notasClinicas.length - 1 ? 0.3 : 1, cursor:'pointer', background:'transparent', border:'none', color:'white', fontSize:'2rem'}}><IconLeft/></button>
                                <div style={{textAlign:'center'}}>
-                                   <div style={{fontSize:'1.2rem', color:'var(--secondary)', fontWeight:'bold'}}>{new Date(notasClinicas[indiceNota].createdAt?.seconds * 1000).toLocaleDateString()}</div>
-                                   <div style={{fontSize:'0.8rem', color:'#94A3B8'}}>Nota {indiceNota + 1} de {notasClinicas.length}</div>
+                                   <div style={{fontSize:'1.5rem', color:'var(--secondary)', fontWeight:'bold'}}>{new Date(notasClinicas[indiceNota].createdAt?.seconds * 1000).toLocaleDateString()}</div>
+                                   <div style={{fontSize:'0.9rem', color:'#94A3B8'}}>Registro {indiceNota + 1} de {notasClinicas.length}</div>
                                </div>
                                <button onClick={() => setIndiceNota(prev => Math.max(prev - 1, 0))} disabled={indiceNota === 0} style={{opacity: indiceNota === 0 ? 0.3 : 1, cursor:'pointer', background:'transparent', border:'none', color:'white', fontSize:'2rem'}}><IconRight/></button>
                            </div>
-                           <div style={{whiteSpace:'pre-wrap', lineHeight:'1.8', color:'#E2E8F0', fontSize:'1.1rem', minHeight:'300px', padding:'20px', background:'rgba(0,0,0,0.2)', borderRadius:'12px'}}>
+
+                           {/* CONTENIDO DE LA NOTA */}
+                           <div style={{whiteSpace:'pre-wrap', lineHeight:'1.8', color:'#E2E8F0', fontSize:'1.1rem', background:'rgba(0,0,0,0.3)', padding:'25px', borderRadius:'12px', border:'1px solid rgba(255,255,255,0.05)'}}>
                                {notasClinicas[indiceNota].contenido}
                            </div>
+
+                           {/* --- AQUÍ INSERTAMOS EL VISOR DE DETALLES SI ES UN DIVA --- */}
+                           {notasClinicas[indiceNota].tipo === 'evaluacion_diva' && notasClinicas[indiceNota].datosBrutos && (
+                               <div style={{marginTop: '30px'}}>
+                                   <DivaResultCard datos={notasClinicas[indiceNota].datosBrutos} />
+                               </div>
+                           )}
+                           {/* -------------------------------------------------------- */}
+
                        </div>
                    ) : (
-                       <p style={{color:'gray', textAlign:'center'}}>No hay historial disponible.</p>
+                       <div style={{padding:'50px', textAlign:'center', color:'#64748b'}}>No hay registros en el historial.</div>
                    )}
                </div>
            </div>
@@ -476,28 +489,39 @@ if (currentView === 'beck') {
            </div>
        )}
 
-       {activeTab === 'notas' && (
+{activeTab === 'notas' && (
            <div style={{animation:'fadeIn 0.3s'}}>
-               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-                   <h3 style={{margin:0, color:'#F8FAFC'}}>BITÁCORA DE SESIÓN</h3>
-                   <div style={{display:'flex', gap:'10px'}}>
-                       <button onClick={() => setShowHistoryModal(true)} style={{background:'var(--secondary)', border:'none', color:'black', padding:'8px 15px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold'}}>📖 CONSULTAR HISTORIAL</button>
-                       <button onClick={exportarHistorial} style={{background:'none', border:'1px solid #E2E8F0', color:'#E2E8F0', padding:'8px 15px', borderRadius:'8px', cursor:'pointer'}}><IconDownload/> EXPORTAR TXT</button>
+               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px'}}>
+                   <div>
+                       <h3 style={{margin:0, color:'#F8FAFC', fontSize:'1.5rem', letterSpacing:'1px'}}>BITÁCORA DE SESIÓN</h3>
+                       <span style={{color:'#64748b', fontSize:'0.9rem'}}>Registro de evolución y notas privadas</span>
+                   </div>
+                   <div style={{display:'flex', gap:'15px'}}>
+                       <button onClick={() => setShowHistoryModal(true)} className="btn-ghost">📖 CONSULTAR HISTORIAL</button>
+                       <button onClick={exportarHistorial} className="btn-ghost"><IconDownload/> EXPORTAR</button>
                    </div>
                </div>
                
-               <div style={{background: 'rgba(15, 23, 42, 0.6)', padding: '20px', borderRadius: '16px', marginBottom: '30px', border: '1px solid rgba(148, 163, 184, 0.1)'}}>
-                    <h4 style={{margin:'0 0 15px 0', color:'var(--secondary)'}}>NUEVA ENTRADA</h4>
-                    <div style={{marginBottom:'15px'}}>
-                        <label style={{fontSize:'0.8rem', color:'#94A3B8', display:'block', marginBottom:'5px'}}>FECHA DEL REGISTRO</label>
-                        <input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{padding:'10px', borderRadius:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(148, 163, 184, 0.2)', color:'#E2E8F0', fontFamily:'inherit'}} />
+               <div style={{background: 'rgba(30, 41, 59, 0.4)', padding: '30px', borderRadius: '16px', border: '1px solid rgba(148, 163, 184, 0.1)'}}>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
+                        <h4 style={{margin:0, color:'var(--secondary)', fontSize:'1.1rem'}}>NUEVA ENTRADA</h4>
+                        <input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{background:'rgba(15,23,42,0.8)', border:'1px solid #334155', color:'white', padding:'8px 15px', borderRadius:'6px', fontFamily:'Rajdhani', cursor:'pointer'}} />
                     </div>
-                    <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)} placeholder="Escribe la evolución clínica, observaciones o bitácora de sesión..." style={{width:'100%', height:'120px', padding:'15px', borderRadius:'10px', background:'rgba(0,0,0,0.3)', color:'#E2E8F0', border:'1px solid rgba(148, 163, 184, 0.2)', fontFamily:'inherit', marginBottom:'15px', resize:'vertical'}} />
-                    <div style={{textAlign:'right'}}><button onClick={guardarNota} className="btn-primary" style={{padding:'10px 30px'}}>GUARDAR NOTA</button></div>
+                    
+                    <textarea 
+                        value={nuevaNota} 
+                        onChange={e => setNuevaNota(e.target.value)} 
+                        placeholder="Escribe la evolución clínica, observaciones o bitácora de sesión..." 
+                        className="terminal-input"
+                        style={{height:'150px', marginBottom:'20px'}} 
+                    />
+                    
+                    <div style={{textAlign:'right'}}>
+                        <button onClick={guardarNota} className="btn-neon">GUARDAR NOTA ENCRIPTADA</button>
+                    </div>
                </div>
            </div>
        )}
-
        {activeTab === 'gestion' && (
            <div style={{animation:'fadeIn 0.3s'}}>
                <div style={{marginBottom:'40px'}}>
