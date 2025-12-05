@@ -411,7 +411,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                             fontWeight: 'bold',
                             letterSpacing: '1px'
                         }}>
-                            CATÁLOGO
+                            CATÁLOGO DE TEST
                         </span>
                      </div>
                    </button>
