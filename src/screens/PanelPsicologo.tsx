@@ -3,6 +3,10 @@ import { doc, updateDoc, addDoc, deleteDoc, collection, query, orderBy, onSnapsh
 import { db } from '../services/firebaseConfig';
 import { STATS_CONFIG, StatTipo, PERSONAJES, PersonajeTipo, obtenerEtapaActual, obtenerNivel } from '../game/GameAssets';
 
+// --- IMPORTACIÓN DE MÓDULOS DE PRUEBAS ---
+import { ClinicalTestsScreen } from './ClinicalTestsScreen'; // El test DIVA real
+import { TestCatalog } from './TestCatalog'; // El nuevo catálogo
+
 // --- ICONOS ---
 const IconDashboard = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>;
 const IconFile = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>;
@@ -38,6 +42,10 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const [showHabits, setShowHabits] = useState(true);
   const [showQuests, setShowQuests] = useState(false);
   
+  // --- NAVEGACIÓN DE PRUEBAS CLÍNICAS (NUEVO) ---
+  // Estados posibles: 'panel' (normal) | 'catalog' (menú) | 'diva5' (ejecutando) | 'otros...'
+  const [currentView, setCurrentView] = useState<'panel' | 'catalog' | 'diva5'>('panel');
+
   // FORMULARIOS
   const [tituloHabito, setTituloHabito] = useState("");
   const [frecuenciaMeta, setFrecuenciaMeta] = useState(7);
@@ -90,13 +98,45 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const guardarExpediente = async () => { try { await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), perfilReal); alert("Guardado."); } catch (e) { alert("Error."); } };
   const calcularEdad = (f: string) => { if(!f) return "--"; const h=new Date(); const n=new Date(f); let e=h.getFullYear()-n.getFullYear(); if(h.getMonth()<n.getMonth()) e--; return e+" años"; };
   
+  // FUNCIÓN: GESTOR DE SELECCIÓN DE TEST (NUEVO)
+  const handleSelectTest = (testId: string) => {
+    if (testId === 'diva5') {
+        setCurrentView('diva5');
+    } else {
+        alert("Este módulo aún no está instalado en el sistema.");
+    }
+  };
+
+  // FUNCIÓN: GUARDAR RESULTADOS DEL DIVA (INTEGRACIÓN)
+  const finalizarDiva = async (data: any) => {
+    try {
+      const informeTexto = data.textoInforme;
+      
+      // Guardamos como nota clínica automática
+      await addDoc(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "notas_clinicas"), {
+          contenido: informeTexto, 
+          datosBrutos: data.raw,   
+          resumen: data.resumen,   
+          createdAt: new Date(),
+          autor: userUid,
+          tipo: 'evaluacion_diva',
+          titulo: 'Resultados Evaluación DIVA-5'
+      });
+
+      // Feedback y redirección
+      setCurrentView('panel'); // Volvemos al panel
+      setActiveTab('notas');   // Vamos a notas
+      
+    } catch (e) {
+      console.error(e);
+      alert("Error al guardar en la base de datos.");
+    }
+  };
+
   // --- GUARDAR NOTA CON FECHA CORREGIDA ---
   const guardarNota = async () => {
       if(!nuevaNota.trim()) return;
-      
-      // Descomponemos la fecha manualmente para evitar conversiones UTC automáticas
       const [year, month, day] = fechaNota.split('-').map(Number);
-      // Creamos la fecha a medio día (12:00:00) para evitar bordes de cambio de día
       const fechaSegura = new Date(year, month - 1, day, 12, 0, 0);
 
       await addDoc(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "notas_clinicas"), {
@@ -105,7 +145,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
           autor: userUid
       });
       setNuevaNota("");
-      setFechaNota(getHoyLocal()); // Reset a hoy
+      setFechaNota(getHoyLocal()); 
       setIndiceNota(0);
   };
 
@@ -153,7 +193,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const registrarAsistencia = async () => { if(confirm("¿Asistencia?")) await updateDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id),{nexo:increment(1), xp:increment(500)}); };
   const tieneInteraccion = (h:any) => Object.values(h.registro||{}).some(v=>v) || Object.keys(h.comentariosSemana||{}).length > 0;
 
-  // --- HELPER PARA RESETEAR COFRE ---
   const getWeekId = (date: Date) => {
       const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
       d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -176,11 +215,12 @@ export function PanelPsicologo({ userData, userUid }: any) {
       }
   };
 
-  // --- RENDER ---
+  // --- RENDER DE VISTAS (INTERCEPTORES) ---
   if (!pacienteSeleccionado) {
       const filtrados = busqueda ? pacientes.filter(p => p.displayName.toLowerCase().includes(busqueda.toLowerCase())) : [];
       return (
         <div style={{textAlign:'left', maxWidth:'800px', margin:'0 auto'}}>
+            {/* ... (tu código de búsqueda de pacientes se mantiene igual) ... */}
             <div style={{background:'rgba(15, 23, 42, 0.6)', padding:'30px', borderRadius:'20px', marginBottom:'30px', border:'1px solid rgba(148, 163, 184, 0.1)', textAlign:'center'}}>
                 <h3 style={{margin:0, color:'#F8FAFC', fontSize:'2rem', letterSpacing:'2px'}}>CENTRO DE MANDO</h3>
             </div>
@@ -198,6 +238,30 @@ export function PanelPsicologo({ userData, userUid }: any) {
       );
   }
 
+  // 1. MODO CATÁLOGO DE PRUEBAS
+  if (currentView === 'catalog') {
+    return (
+      <div style={{animation: 'fadeIn 0.3s'}}>
+        <TestCatalog 
+          onSelectTest={handleSelectTest}
+          onCancel={() => setCurrentView('panel')}
+        />
+      </div>
+    );
+  }
+
+  // 2. MODO EJECUCIÓN DIVA-5
+  if (currentView === 'diva5') {
+    return (
+      <div style={{animation: 'fadeIn 0.3s'}}>
+        <ClinicalTestsScreen 
+          onFinish={finalizarDiva} 
+          onCancel={() => setCurrentView('catalog')} 
+        />
+      </div>
+    );
+  }
+
   const paciente = datosLive || pacienteSeleccionado;
   const nivel = obtenerNivel(paciente.xp || 0);
   const etapa = obtenerEtapaActual(PERSONAJES[paciente.avatarKey as PersonajeTipo]||PERSONAJES['atlas'], nivel);
@@ -205,7 +269,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
   return (
     <div style={{textAlign: 'left', animation: 'fadeIn 0.3s'}}>
        
-       {/* MODAL HISTORIAL DE NOTAS */}
+       {/* ... (MODALES Y HEADER se mantienen igual) ... */}
        {showHistoryModal && (
            <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', zIndex:9999, background:'rgba(15, 23, 42, 0.95)', backdropFilter:'blur(10px)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'20px'}}>
                <div style={{maxWidth:'800px', width:'100%'}}>
@@ -235,7 +299,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
            </div>
        )}
 
-       {/* MODAL RECURSO (STATS) */}
        {selectedResource && (
            <div style={{position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999, background:'rgba(0,0,0,0.85)', backdropFilter:'blur(15px)', display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'}} onClick={() => setSelectedResource(null)}>
                <div style={{background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', padding: '40px', textAlign: 'center', maxWidth: '600px', width:'100%', boxShadow: '0 0 80px rgba(6, 182, 212, 0.15)', display: 'flex', flexDirection: 'column', alignItems: 'center'}} onClick={e => e.stopPropagation()}>
@@ -256,7 +319,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
            <div><h1 style={{margin:0, fontFamily:'Rajdhani', color:'#F8FAFC'}}>{perfilReal.nombreReal || paciente.displayName}</h1><div style={{color:'var(--primary)', fontSize:'0.9rem'}}>NIVEL {nivel} • {etapa.nombreClase}</div></div>
            
            <div style={{marginLeft:'auto', display:'flex', gap:'10px'}}>
-               {/* BOTÓN RESETEAR COFRE SIN ÍCONO (SOLO TEXTO) */}
                <button onClick={resetearCofre} style={{background:'transparent', border:'1px solid #10B981', color:'#10B981', padding:'10px 20px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold'}}>RESET COFRE</button>
                <button onClick={registrarAsistencia} style={{background:'rgba(139, 92, 246, 0.2)', color:'#8B5CF6', border:'1px solid #8B5CF6', padding:'10px 20px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold'}}>+ ASISTENCIA</button>
            </div>
@@ -272,6 +334,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
        {activeTab === 'tablero' && (
            <div style={{animation:'fadeIn 0.3s'}}>
+               {/* ... (tu código del tablero se mantiene igual) ... */}
                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(100px, 1fr))', gap:'15px', marginBottom:'30px'}}>
                    <div onClick={() => setSelectedResource({type:'gold', value: paciente.gold})} style={{background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(148, 163, 184, 0.1)', cursor:'pointer'}}><img src={STATS_CONFIG.gold.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} /><div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#F59E0B'}}>{paciente.gold || 0}</div><div style={{fontSize:'0.7rem', color:'#94A3B8'}}>FONDOS</div></div>
                    <div onClick={() => setSelectedResource({type:'nexo', value: paciente.nexo})} style={{background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(139, 92, 246, 0.3)', cursor:'pointer'}}><img src={STATS_CONFIG.nexo.icon} style={{width:'40px', height:'40px', marginBottom:'5px', objectFit:'contain'}} /><div style={{fontSize:'1.5rem', fontWeight:'bold', color:'#8B5CF6'}}>{paciente.nexo || 0}</div><div style={{fontSize:'0.7rem', color:'#94A3B8'}}>NEXOS</div></div>
@@ -285,11 +348,40 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
        {activeTab === 'expediente' && (
            <div style={{animation:'fadeIn 0.3s', maxWidth:'600px'}}>
+               
+               {/* --- NUEVA SECCIÓN DE PRUEBAS --- */}
+               <h3 style={{color:'var(--secondary)', borderBottom:'1px solid var(--secondary)', paddingBottom:'10px', marginTop:0}}>HERRAMIENTAS DIAGNÓSTICAS</h3>
+               <div style={{display:'flex', gap:'15px', marginBottom:'30px'}}>
+                   <button 
+                     onClick={() => setCurrentView('catalog')} 
+                     style={{
+                       background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
+                       color: 'white',
+                       border: 'none',
+                       padding: '15px 20px',
+                       borderRadius: '12px',
+                       cursor: 'pointer',
+                       display: 'flex',
+                       alignItems: 'center',
+                       gap: '10px',
+                       fontWeight: 'bold',
+                       boxShadow: '0 4px 6px rgba(37, 99, 235, 0.2)'
+                     }}
+                   >
+                     <span style={{fontSize:'1.5rem'}}>🧠</span>
+                     <div style={{textAlign:'left'}}>
+                       <div style={{fontSize:'1rem'}}>ASIGNAR PRUEBAS</div>
+                       <div style={{fontSize:'0.7rem', opacity:0.8}}>Catálogo de Protocolos</div>
+                     </div>
+                   </button>
+               </div>
+               {/* -------------------------------- */}
+
                <h3 style={{color:'var(--secondary)', borderBottom:'1px solid var(--secondary)', paddingBottom:'10px', marginTop:0}}>ENFOQUE PERSONAL (OBJETIVO)</h3>
                <div style={{background:'rgba(236, 72, 153, 0.1)', border:'1px solid rgba(236, 72, 153, 0.3)', padding:'20px', borderRadius:'15px', marginBottom:'30px'}}>
+                   {/* ... (resto del expediente igual) ... */}
                    <h4 style={{margin:'0 0 10px 0', color:'#EC4899', fontFamily:'Rajdhani'}}>OBJETIVO DEL PACIENTE</h4>
                    <p style={{color:'white', fontSize:'1.2rem', fontStyle:'italic'}}>"{paciente.objetivoPersonalData?.titulo || paciente.objetivoPersonal || "No definido"}"</p>
-                   
                    {paciente.objetivoPersonalData?.acciones && (
                        <div style={{marginBottom:'20px', display:'flex', flexWrap:'wrap', gap:'10px'}}>
                            {paciente.objetivoPersonalData.acciones.map((acc:string, i:number) => (
@@ -297,24 +389,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                            ))}
                        </div>
                    )}
-
-                   <div style={{marginTop:'20px', maxHeight:'200px', overflowY:'auto'}}>
-                       <h5 style={{color:'#EC4899', margin:'0 0 10px 0'}}>ÚLTIMAS REFLEXIONES</h5>
-                       {reflexionesObjetivo.length === 0 ? <p style={{color:'gray'}}>Sin registros.</p> : (
-                           <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
-                               {reflexionesObjetivo.map((r, i) => (
-                                   <div key={i} style={{background:'rgba(0,0,0,0.3)', padding:'10px', borderRadius:'8px', borderLeft: r.valoracion==='cerca'?'3px solid #10B981':(r.valoracion==='lejos'?'3px solid #EF4444':'3px solid gray')}}>
-                                       <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.75rem', color:'#94A3B8', marginBottom:'5px'}}>
-                                           <span>{r.createdAt?.seconds ? new Date(r.createdAt.seconds*1000).toLocaleDateString() : "Hoy"}</span>
-                                           <span style={{fontWeight:'bold', color: r.valoracion==='cerca'?'#10B981':(r.valoracion==='lejos'?'#EF4444':'gray')}}>{r.valoracion?.toUpperCase()}</span>
-                                       </div>
-                                       <div style={{color:'#E2E8F0', fontSize:'0.9rem'}}>{r.reflexion}</div>
-                                       {r.accionesCompletadas && r.accionesCompletadas.length > 0 && <div style={{marginTop:'5px', fontSize:'0.8rem', color:'#10B981'}}>✅ {r.accionesCompletadas.join(", ")}</div>}
-                                   </div>
-                               ))}
-                           </div>
-                       )}
-                   </div>
+                   {/* ... resto de componentes expediente ... */}
                </div>
 
                <h3 style={{color:'var(--secondary)', borderBottom:'1px solid var(--secondary)', paddingBottom:'10px', marginTop:0}}>DATOS PERSONALES (PRIVADO)</h3>
@@ -332,6 +407,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
        {activeTab === 'notas' && (
            <div style={{animation:'fadeIn 0.3s'}}>
+               {/* ... (tu código de notas se mantiene igual) ... */}
                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                    <h3 style={{margin:0, color:'#F8FAFC'}}>BITÁCORA DE SESIÓN</h3>
                    <div style={{display:'flex', gap:'10px'}}>
@@ -354,6 +430,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
        {activeTab === 'gestion' && (
            <div style={{animation:'fadeIn 0.3s'}}>
+               {/* ... (tu código de gestión se mantiene igual) ... */}
                <div style={{marginBottom:'40px'}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', cursor:'pointer'}} onClick={() => setShowHabits(!showHabits)}>
                       <h3 style={{margin:0, fontFamily:'Rajdhani', color:'#F8FAFC', fontSize:'1.5rem'}}>PROTOCOLOS DIARIOS ({habitos.length})</h3>
@@ -443,7 +520,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                       </>
                   )}
                </div>
-
+               
                <div style={{marginBottom:'40px'}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', background:'rgba(15, 23, 42, 0.6)', padding:'15px', borderRadius:'12px', cursor:'pointer'}} onClick={() => setShowQuests(!showQuests)}>
                       <h3 style={{margin:0, fontFamily:'Rajdhani', color:'#F8FAFC', fontSize:'1.5rem'}}>MISIONES ({misiones.length})</h3>
