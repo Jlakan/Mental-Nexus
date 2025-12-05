@@ -1,8 +1,6 @@
 import React from 'react';
-import './ClinicalTests.css'; // Reutilizamos tus estilos neón
+import './ClinicalTests.css'; // Asegúrate de que los estilos existan
 
-// CONFIGURACIÓN DE PRUEBAS DISPONIBLES
-// Aquí agregarás futuras pruebas simplemente añadiendo objetos a esta lista
 const AVAILABLE_TESTS = [
   {
     id: 'diva5',
@@ -11,13 +9,16 @@ const AVAILABLE_TESTS = [
     description: 'Protocolo estructurado oficial para la evaluación del TDAH en adultos según criterios DSM-5. Evalúa infancia y adultez.',
     duration: '60-90 min',
     tags: ['TDAH', 'DSM-5', 'Oficial'],
-    active: true // Está listo para usarse
+    active: true
   },
- {
-    id: 'beck_anxiety', // Asegúrate de que el ID sea este
+  {
+    id: 'beck_anxiety',
     title: 'INVENTARIO DE BECK (BAI)',
-    // ... resto de datos ...
-    active: true // <--- CAMBIAR DE false A true
+    subtitle: 'Evaluación de Ansiedad',
+    description: 'Cuestionario de auto-reporte para medir la severidad de la ansiedad en adultos y adolescentes (21 ítems).',
+    duration: '10-15 min',
+    tags: ['Ansiedad', 'Screening'],
+    active: true
   },
   {
     id: 'phq9',
@@ -26,7 +27,7 @@ const AVAILABLE_TESTS = [
     description: 'Instrumento para evaluar el grado de depresión y monitorear la severidad de los síntomas.',
     duration: '5-10 min',
     tags: ['Depresión', 'Seguimiento'],
-    active: false // Aún no programado
+    active: false // Aún no disponible
   }
 ];
 
