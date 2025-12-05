@@ -4,17 +4,16 @@ import { db } from '../services/firebaseConfig';
 import { STATS_CONFIG, StatTipo, PERSONAJES, PersonajeTipo, obtenerEtapaActual, obtenerNivel } from '../game/GameAssets';
 
 // --- IMPORTACIÓN DE MÓDULOS DE PRUEBAS ---
-import { ClinicalTestsScreen } from './ClinicalTestsScreen'; // El test DIVA real
-import { TestCatalog } from './TestCatalog'; // El catálogo de selección
+import { ClinicalTestsScreen } from './ClinicalTestsScreen'; 
+import { TestCatalog } from './TestCatalog'; 
 import { BeckTestScreen } from './BeckTestScreen';
-import './PanelPsicologo.css'; // IMPORTAR LOS ESTILOS NUEVOS
-import { DivaResultCard } from '../components/DivaResultCard'; // IMPORTAR EL VISOR
+import { TestResultsViewer } from '../components/TestResultsViewer'; // <--- EL NUEVO VISOR
 
 // --- ICONOS ---
 const IconDashboard = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>;
 const IconFile = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>;
 const IconNotes = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>;
-const IconTools = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
+const IconTools = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
 const IconDownload = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
 const IconEdit = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
 const IconMedal = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>;
@@ -46,8 +45,9 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const [showQuests, setShowQuests] = useState(false);
   
   // --- NAVEGACIÓN DE PRUEBAS CLÍNICAS ---
-  // Estados posibles: 'panel' (normal) | 'catalog' (menú) | 'diva5' (ejecutando)
-  const [currentView, setCurrentView] = useState<'panel' | 'catalog' | 'diva5' | 'beck'>('panel'); // Agregamos 'beck'
+  // Estados posibles: 'panel' (normal) | 'catalog' (menú) | 'diva5' (ejecutando) | 'beck'
+  const [currentView, setCurrentView] = useState<'panel' | 'catalog' | 'diva5' | 'beck'>('panel');
+  const [visorData, setVisorData] = useState<any>(null); // Estado para guardar la nota que se va a inspeccionar
 
   // FORMULARIOS
   const [tituloHabito, setTituloHabito] = useState("");
@@ -105,7 +105,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
  const handleSelectTest = (testId: string) => {
     if (testId === 'diva5') {
         setCurrentView('diva5');
-    } else if (testId === 'beck_anxiety') { // <--- NUEVO CASO
+    } else if (testId === 'beck_anxiety') { 
         setCurrentView('beck');
     } else {
         alert("Este módulo aún no está instalado en el sistema.");
@@ -222,7 +222,19 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
   // --- INTERCEPTORES DE VISTA (MODOS DE PRUEBA) ---
   
-  // 1. MODO CATÁLOGO DE PRUEBAS
+  // 1. MODO VISOR DE RESULTADOS
+  if (visorData) {
+    return (
+      <div style={{animation: 'fadeIn 0.3s'}}>
+        <TestResultsViewer 
+          nota={visorData} 
+          onClose={() => setVisorData(null)} 
+        />
+      </div>
+    );
+  }
+
+  // 2. MODO CATÁLOGO DE PRUEBAS
   if (currentView === 'catalog') {
     return (
       <div style={{animation: 'fadeIn 0.3s'}}>
@@ -234,7 +246,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
     );
   }
 
-  // 2. MODO EJECUCIÓN DIVA-5
+  // 3. MODO EJECUCIÓN DIVA-5
   if (currentView === 'diva5') {
     return (
       <div style={{animation: 'fadeIn 0.3s'}}>
@@ -245,7 +257,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
       </div>
     );
   }
-// 3. MODO EJECUCIÓN BECK (BAI)
+// 4. MODO EJECUCIÓN BECK (BAI)
 if (currentView === 'beck') {
     return (
       <div style={{animation: 'fadeIn 0.3s'}}>
@@ -256,7 +268,7 @@ if (currentView === 'beck') {
       </div>
     );
   }
-  // 3. MODO PANEL NORMAL (Si no hay pruebas activas)
+  // 5. MODO PANEL NORMAL (Si no hay pruebas activas)
   if (!pacienteSeleccionado) {
       const filtrados = busqueda ? pacientes.filter(p => p.displayName.toLowerCase().includes(busqueda.toLowerCase())) : [];
       return (
@@ -311,13 +323,30 @@ if (currentView === 'beck') {
                                {notasClinicas[indiceNota].contenido}
                            </div>
 
-                           {/* --- AQUÍ INSERTAMOS EL VISOR DE DETALLES SI ES UN DIVA --- */}
-                           {notasClinicas[indiceNota].tipo === 'evaluacion_diva' && notasClinicas[indiceNota].datosBrutos && (
-                               <div style={{marginTop: '30px'}}>
-                                   <DivaResultCard datos={notasClinicas[indiceNota].datosBrutos} />
+                           {/* BOTÓN PARA VER DETALLES (Si es un test) */}
+                           {(notasClinicas[indiceNota].tipo === 'evaluacion_diva' || notasClinicas[indiceNota].tipo === 'evaluacion_beck') && (
+                               <div style={{marginTop: '20px', textAlign: 'right'}}>
+                                   <button 
+                                       onClick={() => setVisorData(notasClinicas[indiceNota])}
+                                       style={{
+                                           background: 'rgba(34, 211, 238, 0.1)',
+                                           border: '1px solid #22d3ee',
+                                           color: '#22d3ee',
+                                           padding: '10px 20px',
+                                           borderRadius: '8px',
+                                           cursor: 'pointer',
+                                           fontWeight: 'bold',
+                                           fontFamily: 'Rajdhani',
+                                           display: 'flex',
+                                           alignItems: 'center',
+                                           gap: '10px',
+                                           marginLeft: 'auto'
+                                       }}
+                                   >
+                                       <IconFile /> VER HOJA DE RESPUESTAS COMPLETA
+                                   </button>
                                </div>
                            )}
-                           {/* -------------------------------------------------------- */}
 
                        </div>
                    ) : (
@@ -348,6 +377,7 @@ if (currentView === 'beck') {
            <div><h1 style={{margin:0, fontFamily:'Rajdhani', color:'#F8FAFC'}}>{perfilReal.nombreReal || paciente.displayName}</h1><div style={{color:'var(--primary)', fontSize:'0.9rem'}}>NIVEL {nivel} • {etapa.nombreClase}</div></div>
            
            <div style={{marginLeft:'auto', display:'flex', gap:'10px'}}>
+               {/* BOTÓN RESETEAR COFRE SIN ÍCONO (SOLO TEXTO) */}
                <button onClick={resetearCofre} style={{background:'transparent', border:'1px solid #10B981', color:'#10B981', padding:'10px 20px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold'}}>RESET COFRE</button>
                <button onClick={registrarAsistencia} style={{background:'rgba(139, 92, 246, 0.2)', color:'#8B5CF6', border:'1px solid #8B5CF6', padding:'10px 20px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold'}}>+ ASISTENCIA</button>
            </div>
@@ -489,7 +519,7 @@ if (currentView === 'beck') {
            </div>
        )}
 
-{activeTab === 'notas' && (
+       {activeTab === 'notas' && (
            <div style={{animation:'fadeIn 0.3s'}}>
                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px'}}>
                    <div>
@@ -522,6 +552,7 @@ if (currentView === 'beck') {
                </div>
            </div>
        )}
+
        {activeTab === 'gestion' && (
            <div style={{animation:'fadeIn 0.3s'}}>
                <div style={{marginBottom:'40px'}}>
