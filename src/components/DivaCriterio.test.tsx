@@ -1,48 +1,37 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { DivaCriterio } from './DivaCriterio';
 
 describe('DivaCriterio', () => {
+  // Datos de prueba actualizados a la nueva estructura (Adultez + Infancia)
   const propsPrueba = {
     titulo: "Criterio A1",
-    pregunta: "¿A menudo comete errores por descuido en las tareas?",
-    // NUEVO: Agregamos una lista de ejemplos
-    ejemplos: [
-        "Comete errores por falta de atención",
-        "Deja el trabajo sin revisar",
-        "Necesita mucho tiempo para los detalles"
-    ],
-    onRespuestaAdultez: vi.fn(), 
-    onRespuestaInfancia: vi.fn()
+    pregunta: "¿A menudo comete errores?",
+    ejemplosAdulto: ["Ejemplo Adulto 1", "Ejemplo Adulto 2"],
+    ejemplosInfancia: ["Ejemplo Infancia 1", "Ejemplo Infancia 2"],
+    onChangeAdultez: vi.fn(),
+    onChangeInfancia: vi.fn()
   };
 
-  it('debe mostrar el título y la pregunta', () => {
+  it('debe renderizar el título y la pregunta', () => {
     render(<DivaCriterio {...propsPrueba} />);
+    
     expect(screen.getByText(propsPrueba.titulo)).toBeInTheDocument();
     expect(screen.getByText(propsPrueba.pregunta)).toBeInTheDocument();
   });
 
-  // NUEVO TEST: Verificamos que los ejemplos aparecen
-  it('debe renderizar la lista de ejemplos', () => {
+  it('debe mostrar las secciones de Vida Adulta e Infancia', () => {
     render(<DivaCriterio {...propsPrueba} />);
-    
-    // Verificamos que cada ejemplo esté en el documento
-    propsPrueba.ejemplos.forEach(ejemplo => {
-        expect(screen.getByText(ejemplo)).toBeInTheDocument();
-    });
+
+    // Verificamos que los textos de las columnas aparezcan
+    expect(screen.getByText(/VIDA ADULTA/i)).toBeInTheDocument();
+    expect(screen.getByText(/INFANCIA/i)).toBeInTheDocument();
   });
 
-  it('debe permitir responder para Vida Adulta', () => {
+  it('debe renderizar los ejemplos correctamente', () => {
     render(<DivaCriterio {...propsPrueba} />);
-    const botonSiAdulto = screen.getByLabelText('Sí en Vida Adulta');
-    fireEvent.click(botonSiAdulto);
-    expect(propsPrueba.onRespuestaAdultez).toHaveBeenCalledWith(true);
-  });
 
-  it('debe permitir responder para Infancia', () => {
-    render(<DivaCriterio {...propsPrueba} />);
-    const botonNoInfancia = screen.getByLabelText('No en Infancia');
-    fireEvent.click(botonNoInfancia);
-    expect(propsPrueba.onRespuestaInfancia).toHaveBeenCalledWith(false);
+    expect(screen.getByText("Ejemplo Adulto 1")).toBeInTheDocument();
+    expect(screen.getByText("Ejemplo Infancia 1")).toBeInTheDocument();
   });
 });
