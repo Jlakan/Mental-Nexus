@@ -7,8 +7,9 @@ import { STATS_CONFIG, StatTipo, PERSONAJES, PersonajeTipo, obtenerEtapaActual, 
 import { ClinicalTestsScreen } from './ClinicalTestsScreen'; 
 import { TestCatalog } from './TestCatalog'; 
 import { BeckTestScreen } from './BeckTestScreen';
-import { TestResultsViewer } from '../components/TestResultsViewer'; // <--- EL NUEVO VISOR
+import { TestResultsViewer } from '../components/TestResultsViewer'; 
 import './PanelPsicologo.css';
+
 // --- ICONOS ---
 const IconDashboard = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>;
 const IconFile = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>;
@@ -45,7 +46,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
   const [showQuests, setShowQuests] = useState(false);
   
   // --- NAVEGACIÓN DE PRUEBAS CLÍNICAS ---
-  // Estados posibles: 'panel' (normal) | 'catalog' (menú) | 'diva5' (ejecutando) | 'beck'
   const [currentView, setCurrentView] = useState<'panel' | 'catalog' | 'diva5' | 'beck'>('panel');
   const [visorData, setVisorData] = useState<any>(null); // Estado para guardar la nota que se va a inspeccionar
 
@@ -99,7 +99,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
   // ACTIONS
   const guardarExpediente = async () => { try { await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), perfilReal); alert("Guardado."); } catch (e) { alert("Error."); } };
-  const calcularEdad = (f: string) => { if(!f) return "--"; const h=new Date(); const n=new Date(f); let e=h.getFullYear()-n.getFullYear(); if(h.getMonth()<n.getMonth()) e--; return e+" años"; };
   
  // FUNCIÓN: GESTOR DE SELECCIÓN DE TEST
  const handleSelectTest = (testId: string) => {
@@ -112,20 +111,29 @@ export function PanelPsicologo({ userData, userUid }: any) {
     }
   };
 
-  // FUNCIÓN: GUARDAR RESULTADOS DEL DIVA (INTEGRACIÓN)
-  const finalizarDiva = async (data: any) => {
+  // FUNCIÓN: GUARDAR RESULTADOS DE EVALUACIONES (GENÉRICA)
+  const finalizarEvaluacion = async (data: any, tipoTest: 'diva' | 'beck') => {
     try {
       const informeTexto = data.textoInforme;
       
-      // Guardamos como nota clínica automática
+      // Configuramos los metadatos según el test
+      let dbTipo = 'evaluacion_diva';
+      let dbTitulo = 'Resultados Evaluación DIVA-5';
+
+      if (tipoTest === 'beck') {
+          dbTipo = 'evaluacion_beck';
+          dbTitulo = 'Resultados Inventario de Beck (BAI)';
+      }
+
+      // Guardamos la nota
       await addDoc(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "notas_clinicas"), {
-          contenido: informeTexto, // Guardamos el resumen legible
-          datosBrutos: data.raw,   // Opcional: Guardamos el JSON crudo por si quieres hacer estadísticas luego
-          resumen: data.resumen,   // Opcional: Los conteos numéricos
+          contenido: informeTexto, // El resumen legible
+          datosBrutos: data.raw || {},   // Guardamos las respuestas crudas (JSON) IMPORTANTÍSIMO
+          puntajes: data.resumen || {},  // Guardamos puntajes numéricos
           createdAt: new Date(),
           autor: userUid,
-          tipo: 'evaluacion_diva',
-          titulo: 'Resultados Evaluación DIVA-5'
+          tipo: dbTipo,       // ✅ AHORA ES DINÁMICO
+          titulo: dbTitulo    // ✅ AHORA ES DINÁMICO
       });
 
       // Feedback y redirección
@@ -251,23 +259,25 @@ export function PanelPsicologo({ userData, userUid }: any) {
     return (
       <div style={{animation: 'fadeIn 0.3s'}}>
         <ClinicalTestsScreen 
-          onFinish={finalizarDiva} 
+          onFinish={(data:any) => finalizarEvaluacion(data, 'diva')} // ✅ TIPO CORRECTO
           onCancel={() => setCurrentView('catalog')} 
         />
       </div>
     );
   }
-// 4. MODO EJECUCIÓN BECK (BAI)
-if (currentView === 'beck') {
+  
+  // 4. MODO EJECUCIÓN BECK (BAI)
+  if (currentView === 'beck') {
     return (
       <div style={{animation: 'fadeIn 0.3s'}}>
         <BeckTestScreen 
-          onFinish={finalizarDiva} // Reutilizamos la misma función de guardado (sirve igual)
+          onFinish={(data:any) => finalizarEvaluacion(data, 'beck')} // ✅ TIPO CORRECTO
           onCancel={() => setCurrentView('catalog')} 
         />
       </div>
     );
   }
+  
   // 5. MODO PANEL NORMAL (Si no hay pruebas activas)
   if (!pacienteSeleccionado) {
       const filtrados = busqueda ? pacientes.filter(p => p.displayName.toLowerCase().includes(busqueda.toLowerCase())) : [];
@@ -324,7 +334,7 @@ if (currentView === 'beck') {
                            </div>
 
                            {/* BOTÓN PARA VER DETALLES (Si es un test) */}
-                           {(notasClinicas[indiceNota].tipo === 'evaluacion_diva' || notasClinicas[indiceNota].tipo === 'evaluacion_beck') && (
+                           {(notasClinicas[indiceNota].tipo?.startsWith('evaluacion')) && (
                                <div style={{marginTop: '20px', textAlign: 'right'}}>
                                    <button 
                                        onClick={() => setVisorData(notasClinicas[indiceNota])}
@@ -377,7 +387,6 @@ if (currentView === 'beck') {
            <div><h1 style={{margin:0, fontFamily:'Rajdhani', color:'#F8FAFC'}}>{perfilReal.nombreReal || paciente.displayName}</h1><div style={{color:'var(--primary)', fontSize:'0.9rem'}}>NIVEL {nivel} • {etapa.nombreClase}</div></div>
            
            <div style={{marginLeft:'auto', display:'flex', gap:'10px'}}>
-               {/* BOTÓN RESETEAR COFRE SIN ÍCONO (SOLO TEXTO) */}
                <button onClick={resetearCofre} style={{background:'transparent', border:'1px solid #10B981', color:'#10B981', padding:'10px 20px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold'}}>RESET COFRE</button>
                <button onClick={registrarAsistencia} style={{background:'rgba(139, 92, 246, 0.2)', color:'#8B5CF6', border:'1px solid #8B5CF6', padding:'10px 20px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold'}}>+ ASISTENCIA</button>
            </div>
@@ -424,7 +433,7 @@ if (currentView === 'beck') {
                         e.currentTarget.style.boxShadow = 'none';
                      }}
                      style={{
-                       background: 'rgba(15, 23, 42, 0.6)', // Fondo oscuro semitransparente
+                       background: 'rgba(15, 23, 42, 0.6)', 
                        border: '1px solid rgba(148, 163, 184, 0.2)',
                        borderRadius: '16px',
                        padding: '20px',
@@ -434,11 +443,10 @@ if (currentView === 'beck') {
                        gap: '15px',
                        cursor: 'pointer',
                        transition: 'all 0.3s ease',
-                       width: '160px', // Tamaño controlado
+                       width: '160px',
                        height: '180px'
                      }}
                    >
-                     {/* IMAGEN DEL ICONO */}
                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <img 
                             src="/evaluaciones.png" 
@@ -447,12 +455,10 @@ if (currentView === 'beck') {
                                 width: '80px', 
                                 height: '80px', 
                                 objectFit: 'contain',
-                                filter: 'drop-shadow(0 0 10px rgba(34,211,238,0.3))' // Resplandor azul al icono
+                                filter: 'drop-shadow(0 0 10px rgba(34,211,238,0.3))'
                             }} 
                         />
                      </div>
-
-                     {/* RECUADRO DE TEXTO */}
                      <div style={{
                          background: 'rgba(0,0,0,0.3)',
                          width: '100%',
@@ -472,7 +478,6 @@ if (currentView === 'beck') {
                      </div>
                    </button>
                </div>
-               {/* -------------------------------- */}
 
                <h3 style={{color:'var(--secondary)', borderBottom:'1px solid var(--secondary)', paddingBottom:'10px', marginTop:0}}>ENFOQUE PERSONAL (OBJETIVO)</h3>
                <div style={{background:'rgba(236, 72, 153, 0.1)', border:'1px solid rgba(236, 72, 153, 0.3)', padding:'20px', borderRadius:'15px', marginBottom:'30px'}}>
@@ -597,7 +602,7 @@ if (currentView === 'beck') {
                                         <div>
                                             <div style={{fontWeight:'bold', color:'#E2E8F0'}}>{h.titulo} <span style={{fontSize:'0.8rem', color:'#94A3B8'}}>({h.frecuenciaMeta}/sem)</span></div>
                                             
-                                            {/* FILA DE SEGUIMIENTO DIARIO (NUEVO) */}
+                                            {/* FILA DE SEGUIMIENTO DIARIO */}
                                             <div style={{display: 'flex', gap: '5px', marginTop:'8px', marginBottom:'5px'}}>
                                               {['L','M','X','J','V','S','D'].map(day => (
                                                  <div key={day} style={{
