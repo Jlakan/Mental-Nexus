@@ -1,19 +1,25 @@
 import React from 'react';
-import '../screens/ClinicalTests.css'; // Usamos los estilos Sci-Fi
+import '../screens/ClinicalTests.css'; 
 
 interface Props {
-  nota: any; // El objeto completo de la nota guardada en Firebase
+  nota: any; 
   onClose: () => void;
 }
 
 export const TestResultsViewer: React.FC<Props> = ({ nota, onClose }) => {
   const datos = nota.datosBrutos;
-  const tipo = nota.tipo;
+  
+  // --- LÓGICA DE AUTO-DETECCIÓN (MAGIA AQUÍ) ---
+  // Si datosBrutos es una lista (Array), sabemos que es BECK, aunque la etiqueta diga otra cosa.
+  const esBeck = nota.tipo === 'evaluacion_beck' || Array.isArray(datos);
+  const esDiva = !esBeck; // Si no es Beck, asumimos que es DIVA
 
   // --- RENDERIZADOR ESPECÍFICO PARA DIVA-5 ---
   const renderDivaDetails = () => {
-    // Filtramos las claves (A1..A9, HI1..HI9, D1..D5)
-    const keys = Object.keys(datos).filter(k => k !== 'resumen' && k !== 'textoInforme').sort();
+    // Si por error entramos aquí con datos de Beck, evitamos el crash
+    if (Array.isArray(datos)) return null;
+
+    const keys = Object.keys(datos || {}).filter(k => k !== 'resumen' && k !== 'textoInforme').sort();
 
     return (
       <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
@@ -67,8 +73,7 @@ export const TestResultsViewer: React.FC<Props> = ({ nota, onClose }) => {
 
   // --- RENDERIZADOR ESPECÍFICO PARA BECK (BAI) ---
   const renderBeckDetails = () => {
-    // Si no hay datos brutos (array de números), mostramos aviso
-    if (!Array.isArray(datos)) return <div>No hay datos detallados disponibles.</div>;
+    if (!Array.isArray(datos)) return <div style={{padding:'20px', color:'orange'}}>⚠️ Formato de datos no reconocido.</div>;
 
     const BAI_QUESTIONS = [
       "Torpeza/Entumecimiento", "Acaloramiento", "Temblor piernas", "Incapacidad relajarse", 
@@ -107,10 +112,10 @@ export const TestResultsViewer: React.FC<Props> = ({ nota, onClose }) => {
         <div>
           <div style={{ color: '#22d3ee', letterSpacing: '2px', fontSize: '0.9rem', fontWeight: 'bold' }}>VISOR DE RESULTADOS</div>
           <h1 style={{ margin: 0, color: 'white', fontSize: '2rem' }}>
-            {tipo === 'evaluacion_diva' ? 'ENTREVISTA DIVA-5' : 'INVENTARIO BECK'}
+            {esBeck ? 'INVENTARIO BECK (BAI)' : 'ENTREVISTA DIVA-5'}
           </h1>
           <div style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '5px' }}>
-            Fecha: {new Date(nota.createdAt?.seconds * 1000).toLocaleDateString()} | ID: {nota.id}
+            Fecha: {nota.createdAt?.seconds ? new Date(nota.createdAt.seconds * 1000).toLocaleDateString() : 'Fecha desconocida'}
           </div>
         </div>
         <button 
@@ -142,13 +147,13 @@ export const TestResultsViewer: React.FC<Props> = ({ nota, onClose }) => {
            </div>
         </div>
 
-        {/* DETALLE SEGÚN TIPO */}
+        {/* DETALLE SEGÚN DETECCIÓN INTELIGENTE */}
         <h3 style={{ color: '#94a3b8', borderBottom: '1px solid #334155', paddingBottom: '10px', marginBottom: '20px' }}>
           DESGLOSE DE RESPUESTAS
         </h3>
 
-        {tipo === 'evaluacion_diva' && renderDivaDetails()}
-        {(!tipo || tipo === 'evaluacion_beck') && renderBeckDetails()}
+        {esDiva && renderDivaDetails()}
+        {esBeck && renderBeckDetails()}
 
       </div>
     </div>
