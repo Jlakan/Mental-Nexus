@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, updateDoc, addDoc, deleteDoc, collection, query, orderBy, onSnapshot, increment, arrayRemove } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, deleteDoc, collection, query, orderBy, onSnapshot, increment, arrayRemove, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { STATS_CONFIG, StatTipo, PERSONAJES, PersonajeTipo, obtenerEtapaActual, obtenerNivel } from '../game/GameAssets';
 
@@ -7,6 +7,7 @@ import { STATS_CONFIG, StatTipo, PERSONAJES, PersonajeTipo, obtenerEtapaActual, 
 import { ClinicalTestsScreen } from './ClinicalTestsScreen'; 
 import { TestCatalog } from './TestCatalog'; 
 import { BeckTestScreen } from './BeckTestScreen';
+import { PHQ9TestScreen } from './PHQ9TestScreen'; // <--- Asegúrate de haber creado este archivo
 import { TestResultsViewer } from '../components/TestResultsViewer'; 
 import './PanelPsicologo.css';
 
@@ -23,6 +24,7 @@ const IconArrowDown = () => <svg width="24" height="24" viewBox="0 0 24 24" fill
 const IconArrowUp = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="18 15 12 9 6 15"></polyline></svg>;
 const IconLeft = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"></polyline></svg>;
 const IconRight = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"></polyline></svg>;
+const IconChart = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>;
 
 export function PanelPsicologo({ userData, userUid }: any) {
   const [pacientes, setPacientes] = useState<any[]>([]); 
@@ -43,11 +45,11 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
   // UI GESTION
   const [showHabits, setShowHabits] = useState(true);
-  const [showQuests, setShowQuests] = useState(false);
+  const [expandedStatsHabit, setExpandedStatsHabit] = useState<string | null>(null); // Nuevo: ID del hábito del que vemos gráficas
   
   // --- NAVEGACIÓN DE PRUEBAS CLÍNICAS ---
-  const [currentView, setCurrentView] = useState<'panel' | 'catalog' | 'diva5' | 'beck'>('panel');
-  const [visorData, setVisorData] = useState<any>(null); // Estado para guardar la nota que se va a inspeccionar
+  const [currentView, setCurrentView] = useState<'panel' | 'catalog' | 'diva5' | 'beck' | 'phq9'>('panel');
+  const [visorData, setVisorData] = useState<any>(null);
 
   // FORMULARIOS
   const [tituloHabito, setTituloHabito] = useState("");
@@ -67,17 +69,23 @@ export function PanelPsicologo({ userData, userUid }: any) {
   });
   
   const [nuevaNota, setNuevaNota] = useState("");
-  
-  // FUNCIÓN PARA OBTENER FECHA LOCAL SEGURA (HOY)
-  const getHoyLocal = () => {
+  const [fechaNota, setFechaNota] = useState(() => {
       const d = new Date();
       return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-  };
+  });
   
-  const [fechaNota, setFechaNota] = useState(getHoyLocal()); 
   const [selectedResource, setSelectedResource] = useState<any>(null);
 
-  // CARGA DATOS
+  // --- HELPER: OBTENER ID DE SEMANA (IMPORTANTE PARA EL CONSERJE) ---
+  const getWeekId = (date: Date) => {
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+      return `${d.getUTCFullYear()}-W${weekNo}`;
+  };
+
+  // CARGA DATOS INICIALES
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "users", userUid, "pacientes"), (s) => setPacientes(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     return () => unsub();
@@ -97,48 +105,96 @@ export function PanelPsicologo({ userData, userUid }: any) {
     return () => { unsubP(); unsubH(); unsubM(); unsubN(); unsubR(); };
   }, [pacienteSeleccionado, userUid]);
 
+  // --- AUTO-LIMPIEZA INTELIGENTE Y GUARDADO DE HISTORIAL ---
+  useEffect(() => {
+    if (!pacienteSeleccionado || habitos.length === 0) return;
+
+    const verificarYResetearSemana = async () => {
+        const currentWeek = getWeekId(new Date());
+        const batch = writeBatch(db);
+        let hayCambios = false;
+
+        habitos.forEach((h) => {
+            // Si la semana guardada es diferente a la actual...
+            if (h.lastUpdatedWeek !== currentWeek) {
+                const habitoRef = doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "habitos", h.id);
+                
+                // 1. Identificamos qué semana estamos cerrando
+                const semanaAGuardar = h.lastUpdatedWeek || "semana_anterior";
+
+                // 2. Preparamos el objeto de actualización
+                const updateData: any = {
+                    registro: { L: false, M: false, X: false, J: false, V: false, S: false, D: false }, // Reset check
+                    comentariosSemana: {}, // Reset comentarios
+                    lastUpdatedWeek: currentWeek // Marca de agua nueva
+                };
+
+                // 3. Guardamos lo viejo en el historial (si tenía datos)
+                if (h.registro) {
+                    // Usamos notación de punto para guardar en un mapa nested
+                    updateData[`historial.${semanaAGuardar}`] = {
+                        checks: h.registro,
+                        comentarios: h.comentariosSemana || {},
+                        meta: h.frecuenciaMeta || 7
+                    };
+                }
+                
+                batch.update(habitoRef, updateData);
+                hayCambios = true;
+            }
+        });
+
+        if (hayCambios) {
+            console.log("💾 Historial archivado y tablero reseteado para la nueva semana.");
+            try {
+                await batch.commit();
+            } catch (error) {
+                console.error("Error al archivar semana:", error);
+            }
+        }
+    };
+
+    verificarYResetearSemana();
+  }, [habitos, pacienteSeleccionado]);
+
+
   // ACTIONS
   const guardarExpediente = async () => { try { await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), perfilReal); alert("Guardado."); } catch (e) { alert("Error."); } };
   
  // FUNCIÓN: GESTOR DE SELECCIÓN DE TEST
  const handleSelectTest = (testId: string) => {
-    if (testId === 'diva5') {
-        setCurrentView('diva5');
-    } else if (testId === 'beck_anxiety') { 
-        setCurrentView('beck');
-    } else {
-        alert("Este módulo aún no está instalado en el sistema.");
-    }
+    if (testId === 'diva5') setCurrentView('diva5');
+    else if (testId === 'beck_anxiety') setCurrentView('beck');
+    else if (testId === 'phq9') setCurrentView('phq9');
+    else alert("Este módulo aún no está instalado en el sistema.");
   };
 
-  // FUNCIÓN: GUARDAR RESULTADOS DE EVALUACIONES (GENÉRICA)
-  const finalizarEvaluacion = async (data: any, tipoTest: 'diva' | 'beck') => {
+  // FUNCIÓN: GUARDAR RESULTADOS DE EVALUACIONES
+  const finalizarEvaluacion = async (data: any, tipoTest: 'diva' | 'beck' | 'phq9') => {
     try {
-      const informeTexto = data.textoInforme;
-      
-      // Configuramos los metadatos según el test
       let dbTipo = 'evaluacion_diva';
       let dbTitulo = 'Resultados Evaluación DIVA-5';
 
       if (tipoTest === 'beck') {
           dbTipo = 'evaluacion_beck';
           dbTitulo = 'Resultados Inventario de Beck (BAI)';
+      } else if (tipoTest === 'phq9') {
+          dbTipo = 'evaluacion_phq9';
+          dbTitulo = 'Resultados PHQ-9 (Depresión)';
       }
 
-      // Guardamos la nota
       await addDoc(collection(db, "users", userUid, "pacientes", pacienteSeleccionado.id, "notas_clinicas"), {
-          contenido: informeTexto, // El resumen legible
-          datosBrutos: data.raw || {},   // Guardamos las respuestas crudas (JSON) IMPORTANTÍSIMO
-          puntajes: data.resumen || {},  // Guardamos puntajes numéricos
+          contenido: data.textoInforme,
+          datosBrutos: data.raw || {},
+          puntajes: data.resumen || {},
           createdAt: new Date(),
           autor: userUid,
-          tipo: dbTipo,       // ✅ AHORA ES DINÁMICO
-          titulo: dbTitulo    // ✅ AHORA ES DINÁMICO
+          tipo: dbTipo,
+          titulo: dbTitulo
       });
 
-      // Feedback y redirección
-      setCurrentView('panel'); // Volvemos al panel
-      setActiveTab('notas');   // Vamos a notas para ver el resultado
+      setCurrentView('panel');
+      setActiveTab('notas');
       
     } catch (e) {
       console.error(e);
@@ -146,7 +202,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
     }
   };
 
-  // --- GUARDAR NOTA CON FECHA CORREGIDA ---
   const guardarNota = async () => {
       if(!nuevaNota.trim()) return;
       const [year, month, day] = fechaNota.split('-').map(Number);
@@ -158,7 +213,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
           autor: userUid
       });
       setNuevaNota("");
-      setFechaNota(getHoyLocal()); 
       setIndiceNota(0);
   };
 
@@ -179,7 +233,26 @@ export function PanelPsicologo({ userData, userUid }: any) {
   };
   const cargarParaEditar = (h: any) => { setTituloHabito(h.titulo); setFrecuenciaMeta(h.frecuenciaMeta); setRecompensas(h.recompensas || []); setEditingHabitId(h.id); };
   const cancelarEdicion = () => { setTituloHabito(""); setFrecuenciaMeta(7); setRecompensas([]); setEditingHabitId(null); };
-  const addSub = () => { if(newSubText) { setQuestSubs([...questSubs, {id:Date.now(), texto:newSubText, completado:false}]); setNewSubText(""); } };
+  const archivarHabito = async (id:string, est:string) => { if(confirm("¿Cambiar estado?")) await updateDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id,"habitos",id),{estado: est==='archivado'?'activo':'archivado'}); };
+  const eliminarHabito = async (id:string) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id,"habitos",id)); };
+  
+  const registrarAsistencia = async () => { if(confirm("¿Asistencia?")) await updateDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id),{nexo:increment(1), xp:increment(500)}); };
+  const tieneInteraccion = (h:any) => Object.values(h.registro||{}).some(v=>v) || Object.keys(h.comentariosSemana||{}).length > 0;
+
+  const resetearCofre = async () => {
+      if(!confirm("⚠️ ¿Resetear el cofre de esta semana para el paciente?")) return;
+      try {
+          const currentWeekId = getWeekId(new Date());
+          await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), {
+              claimedChests: arrayRemove(currentWeekId)
+          });
+          alert("Cofre reseteado. El paciente puede abrirlo de nuevo.");
+      } catch (e) {
+          console.error(e);
+          alert("Error al resetear.");
+      }
+  };
+
   const analizarBalance = () => {
       if (habitos.length === 0) return null;
       const activos = habitos.filter(h => h.estado !== 'archivado');
@@ -197,93 +270,79 @@ export function PanelPsicologo({ userData, userUid }: any) {
       return null;
   };
 
-  const archivarHabito = async (id:string, est:string) => { if(confirm("¿Cambiar estado?")) await updateDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id,"habitos",id),{estado: est==='archivado'?'activo':'archivado'}); };
-  const eliminarHabito = async (id:string) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id,"habitos",id)); };
-  
-  const guardarQuest = async () => { if(!questTitulo) return; await addDoc(collection(db,"users",userUid,"pacientes",pacienteSeleccionado.id,"misiones"),{titulo:questTitulo, descripcion:questDesc, dificultad:questDif, fechaVencimiento:questFecha, subObjetivos:questSubs, estado:'activa'}); alert("Enviada"); setQuestTitulo(""); };
-  const eliminarQuest = async (id:string) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id,"misiones",id)); };
-  
-  const registrarAsistencia = async () => { if(confirm("¿Asistencia?")) await updateDoc(doc(db,"users",userUid,"pacientes",pacienteSeleccionado.id),{nexo:increment(1), xp:increment(500)}); };
-  const tieneInteraccion = (h:any) => Object.values(h.registro||{}).some(v=>v) || Object.keys(h.comentariosSemana||{}).length > 0;
+  // --- RENDERIZADO DE GRÁFICA DE HÁBITO ---
+  const renderHabitChart = (h: any) => {
+      const historial = h.historial || {};
+      const historyKeys = Object.keys(historial).sort();
+      
+      // Preparamos datos: Historial + Semana Actual
+      const dataPoints = historyKeys.map(key => {
+          const weekData = historial[key].checks || {};
+          const count = Object.values(weekData).filter(v => v).length;
+          return { label: key.split('-')[1], count }; // "W48"
+      });
 
-  const getWeekId = (date: Date) => {
-      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-      const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-      return `${d.getUTCFullYear()}-W${weekNo}`;
-  };
+      // Agregamos la semana actual
+      const currentCount = Object.values(h.registro || {}).filter(v => v).length;
+      dataPoints.push({ label: 'ACTUAL', count: currentCount });
 
-  const resetearCofre = async () => {
-      if(!confirm("⚠️ ¿Resetear el cofre de esta semana para el paciente?")) return;
-      try {
-          const currentWeekId = getWeekId(new Date());
-          await updateDoc(doc(db, "users", userUid, "pacientes", pacienteSeleccionado.id), {
-              claimedChests: arrayRemove(currentWeekId)
-          });
-          alert("Cofre reseteado. El paciente puede abrirlo de nuevo.");
-      } catch (e) {
-          console.error(e);
-          alert("Error al resetear.");
-      }
+      return (
+          <div style={{background: 'rgba(0,0,0,0.4)', padding: '20px', borderRadius: '12px', marginTop: '15px', border: '1px solid rgba(255,255,255,0.1)'}}>
+              <h4 style={{margin: '0 0 15px 0', color: '#22d3ee', fontSize: '0.9rem'}}>HISTORIAL DE CUMPLIMIENTO</h4>
+              {dataPoints.length === 1 && dataPoints[0].count === 0 ? (
+                  <div style={{color: 'gray', fontSize: '0.8rem', fontStyle: 'italic'}}>Sin datos suficientes para graficar.</div>
+              ) : (
+                  <div style={{display: 'flex', alignItems: 'flex-end', gap: '8px', height: '100px', paddingBottom: '20px'}}>
+                      {dataPoints.map((pt, idx) => {
+                          const heightPct = Math.min((pt.count / 7) * 100, 100);
+                          const isCurrent = pt.label === 'ACTUAL';
+                          return (
+                              <div key={idx} style={{flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px'}}>
+                                  <div style={{fontSize: '0.7rem', color: 'white', fontWeight: 'bold'}}>{pt.count}</div>
+                                  <div style={{
+                                      width: '100%', 
+                                      height: `${heightPct}%`, 
+                                      background: isCurrent ? 'var(--secondary)' : 'var(--primary)', 
+                                      borderRadius: '4px 4px 0 0',
+                                      minHeight: '4px',
+                                      opacity: isCurrent ? 1 : 0.6,
+                                      transition: 'all 0.3s ease'
+                                  }}></div>
+                                  <div style={{fontSize: '0.6rem', color: '#94a3b8'}}>{pt.label}</div>
+                              </div>
+                          );
+                      })}
+                  </div>
+              )}
+          </div>
+      );
   };
 
   // --- INTERCEPTORES DE VISTA (MODOS DE PRUEBA) ---
-  
-  // 1. MODO VISOR DE RESULTADOS
   if (visorData) {
-    return (
-      <div style={{animation: 'fadeIn 0.3s'}}>
-        <TestResultsViewer 
-          nota={visorData} 
-          onClose={() => setVisorData(null)} 
-        />
-      </div>
-    );
+    return (<div style={{animation: 'fadeIn 0.3s'}}><TestResultsViewer nota={visorData} onClose={() => setVisorData(null)} /></div>);
   }
 
-  // 2. MODO CATÁLOGO DE PRUEBAS
   if (currentView === 'catalog') {
-    return (
-      <div style={{animation: 'fadeIn 0.3s'}}>
-        <TestCatalog 
-          onSelectTest={handleSelectTest}
-          onCancel={() => setCurrentView('panel')}
-        />
-      </div>
-    );
+    return (<div style={{animation: 'fadeIn 0.3s'}}><TestCatalog onSelectTest={handleSelectTest} onCancel={() => setCurrentView('panel')}/></div>);
   }
 
-  // 3. MODO EJECUCIÓN DIVA-5
   if (currentView === 'diva5') {
-    return (
-      <div style={{animation: 'fadeIn 0.3s'}}>
-        <ClinicalTestsScreen 
-          onFinish={(data:any) => finalizarEvaluacion(data, 'diva')} // ✅ TIPO CORRECTO
-          onCancel={() => setCurrentView('catalog')} 
-        />
-      </div>
-    );
+    return (<div style={{animation: 'fadeIn 0.3s'}}><ClinicalTestsScreen onFinish={(data:any) => finalizarEvaluacion(data, 'diva')} onCancel={() => setCurrentView('catalog')} /></div>);
   }
   
-  // 4. MODO EJECUCIÓN BECK (BAI)
   if (currentView === 'beck') {
-    return (
-      <div style={{animation: 'fadeIn 0.3s'}}>
-        <BeckTestScreen 
-          onFinish={(data:any) => finalizarEvaluacion(data, 'beck')} // ✅ TIPO CORRECTO
-          onCancel={() => setCurrentView('catalog')} 
-        />
-      </div>
-    );
+    return (<div style={{animation: 'fadeIn 0.3s'}}><BeckTestScreen onFinish={(data:any) => finalizarEvaluacion(data, 'beck')} onCancel={() => setCurrentView('catalog')} /></div>);
+  }
+
+  if (currentView === 'phq9') {
+    return (<div style={{animation: 'fadeIn 0.3s'}}><PHQ9TestScreen onFinish={(data:any) => finalizarEvaluacion(data, 'phq9')} onCancel={() => setCurrentView('catalog')} /></div>);
   }
   
-  // 5. MODO PANEL NORMAL (Si no hay pruebas activas)
   if (!pacienteSeleccionado) {
       const filtrados = busqueda ? pacientes.filter(p => p.displayName.toLowerCase().includes(busqueda.toLowerCase())) : [];
       return (
         <div style={{textAlign:'left', maxWidth:'800px', margin:'0 auto'}}>
-            {/* ... BUSQUEDA PACIENTES ... */}
             <div style={{background:'rgba(15, 23, 42, 0.6)', padding:'30px', borderRadius:'20px', marginBottom:'30px', border:'1px solid rgba(148, 163, 184, 0.1)', textAlign:'center'}}>
                 <h3 style={{margin:0, color:'#F8FAFC', fontSize:'2rem', letterSpacing:'2px'}}>CENTRO DE MANDO</h3>
             </div>
@@ -308,7 +367,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
   return (
     <div style={{textAlign: 'left', animation: 'fadeIn 0.3s'}}>
        
-       {/* MODAL HISTORIAL DE NOTAS (REDDISEÑADO) */}
        {showHistoryModal && (
            <div className="modal-overlay">
                <div className="modal-content">
@@ -316,7 +374,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
                        <h2 style={{margin:0, color:'#F8FAFC', fontFamily:'Rajdhani', letterSpacing:'2px'}}>HISTORIAL CLÍNICO</h2>
                        <button onClick={() => setShowHistoryModal(false)} className="btn-ghost" style={{padding:'5px 15px'}}>✕ CERRAR</button>
                    </div>
-
                    {notasClinicas.length > 0 ? (
                        <div className="modal-body">
                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px'}}>
@@ -327,37 +384,16 @@ export function PanelPsicologo({ userData, userUid }: any) {
                                </div>
                                <button onClick={() => setIndiceNota(prev => Math.max(prev - 1, 0))} disabled={indiceNota === 0} style={{opacity: indiceNota === 0 ? 0.3 : 1, cursor:'pointer', background:'transparent', border:'none', color:'white', fontSize:'2rem'}}><IconRight/></button>
                            </div>
-
-                           {/* CONTENIDO DE LA NOTA */}
                            <div style={{whiteSpace:'pre-wrap', lineHeight:'1.8', color:'#E2E8F0', fontSize:'1.1rem', background:'rgba(0,0,0,0.3)', padding:'25px', borderRadius:'12px', border:'1px solid rgba(255,255,255,0.05)'}}>
                                {notasClinicas[indiceNota].contenido}
                            </div>
-
-                           {/* BOTÓN PARA VER DETALLES (Si es un test) */}
                            {(notasClinicas[indiceNota].tipo?.startsWith('evaluacion')) && (
                                <div style={{marginTop: '20px', textAlign: 'right'}}>
-                                   <button 
-                                       onClick={() => setVisorData(notasClinicas[indiceNota])}
-                                       style={{
-                                           background: 'rgba(34, 211, 238, 0.1)',
-                                           border: '1px solid #22d3ee',
-                                           color: '#22d3ee',
-                                           padding: '10px 20px',
-                                           borderRadius: '8px',
-                                           cursor: 'pointer',
-                                           fontWeight: 'bold',
-                                           fontFamily: 'Rajdhani',
-                                           display: 'flex',
-                                           alignItems: 'center',
-                                           gap: '10px',
-                                           marginLeft: 'auto'
-                                       }}
-                                   >
+                                   <button onClick={() => setVisorData(notasClinicas[indiceNota])} style={{background: 'rgba(34, 211, 238, 0.1)', border: '1px solid #22d3ee', color: '#22d3ee', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'Rajdhani', display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto'}}>
                                        <IconFile /> VER HOJA DE RESPUESTAS COMPLETA
                                    </button>
                                </div>
                            )}
-
                        </div>
                    ) : (
                        <div style={{padding:'50px', textAlign:'center', color:'#64748b'}}>No hay registros en el historial.</div>
@@ -366,7 +402,6 @@ export function PanelPsicologo({ userData, userUid }: any) {
            </div>
        )}
 
-       {/* MODAL RECURSO (STATS) */}
        {selectedResource && (
            <div style={{position:'fixed', top:0, left:0, width:'100vw', height:'100vh', zIndex:9999, background:'rgba(0,0,0,0.85)', backdropFilter:'blur(15px)', display:'flex', justifyContent:'center', alignItems:'center', padding:'20px'}} onClick={() => setSelectedResource(null)}>
                <div style={{background: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '20px', padding: '40px', textAlign: 'center', maxWidth: '600px', width:'100%', boxShadow: '0 0 80px rgba(6, 182, 212, 0.15)', display: 'flex', flexDirection: 'column', alignItems: 'center'}} onClick={e => e.stopPropagation()}>
@@ -415,66 +450,18 @@ export function PanelPsicologo({ userData, userUid }: any) {
 
        {activeTab === 'expediente' && (
            <div style={{animation:'fadeIn 0.3s', maxWidth:'600px'}}>
-               
-               {/* --- NUEVA SECCIÓN DE PRUEBAS (BOTÓN GRÁFICO) --- */}
                <h3 style={{color:'var(--secondary)', borderBottom:'1px solid var(--secondary)', paddingBottom:'10px', marginTop:0}}>HERRAMIENTAS DIAGNÓSTICAS</h3>
-               
                <div style={{display:'flex', gap:'20px', marginBottom:'30px'}}>
-                   <button 
-                     onClick={() => setCurrentView('catalog')} 
-                     onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-5px)';
-                        e.currentTarget.style.borderColor = '#22d3ee';
-                        e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(34, 211, 238, 0.3)';
-                     }}
-                     onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.2)';
-                        e.currentTarget.style.boxShadow = 'none';
-                     }}
-                     style={{
-                       background: 'rgba(15, 23, 42, 0.6)', 
-                       border: '1px solid rgba(148, 163, 184, 0.2)',
-                       borderRadius: '16px',
-                       padding: '20px',
-                       display: 'flex',
-                       flexDirection: 'column',
-                       alignItems: 'center',
-                       gap: '15px',
-                       cursor: 'pointer',
-                       transition: 'all 0.3s ease',
-                       width: '160px',
-                       height: '180px'
-                     }}
+                   <button onClick={() => setCurrentView('catalog')} 
+                     onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.borderColor = '#22d3ee'; e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(34, 211, 238, 0.3)'; }}
+                     onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.2)'; e.currentTarget.style.boxShadow = 'none'; }}
+                     style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', cursor: 'pointer', transition: 'all 0.3s ease', width: '160px', height: '180px' }}
                    >
                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <img 
-                            src="/evaluaciones.png" 
-                            alt="Evaluaciones" 
-                            style={{ 
-                                width: '80px', 
-                                height: '80px', 
-                                objectFit: 'contain',
-                                filter: 'drop-shadow(0 0 10px rgba(34,211,238,0.3))'
-                            }} 
-                        />
+                        <img src="/evaluaciones.png" alt="Evaluaciones" style={{ width: '80px', height: '80px', objectFit: 'contain', filter: 'drop-shadow(0 0 10px rgba(34,211,238,0.3))' }} />
                      </div>
-                     <div style={{
-                         background: 'rgba(0,0,0,0.3)',
-                         width: '100%',
-                         padding: '8px 0',
-                         borderRadius: '8px',
-                         borderTop: '1px solid rgba(255,255,255,0.05)'
-                     }}>
-                        <span style={{ 
-                            color: '#e2e8f0', 
-                            fontSize: '0.9rem', 
-                            fontFamily: 'Rajdhani', 
-                            fontWeight: 'bold',
-                            letterSpacing: '1px'
-                        }}>
-                            CATÁLOGO DE TEST
-                        </span>
+                     <div style={{ background: 'rgba(0,0,0,0.3)', width: '100%', padding: '8px 0', borderRadius: '8px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                        <span style={{ color: '#e2e8f0', fontSize: '0.9rem', fontFamily: 'Rajdhani', fontWeight: 'bold', letterSpacing: '1px' }}>CATÁLOGO DE TEST</span>
                      </div>
                    </button>
                </div>
@@ -483,15 +470,11 @@ export function PanelPsicologo({ userData, userUid }: any) {
                <div style={{background:'rgba(236, 72, 153, 0.1)', border:'1px solid rgba(236, 72, 153, 0.3)', padding:'20px', borderRadius:'15px', marginBottom:'30px'}}>
                    <h4 style={{margin:'0 0 10px 0', color:'#EC4899', fontFamily:'Rajdhani'}}>OBJETIVO DEL PACIENTE</h4>
                    <p style={{color:'white', fontSize:'1.2rem', fontStyle:'italic'}}>"{paciente.objetivoPersonalData?.titulo || paciente.objetivoPersonal || "No definido"}"</p>
-                   
                    {paciente.objetivoPersonalData?.acciones && (
                        <div style={{marginBottom:'20px', display:'flex', flexWrap:'wrap', gap:'10px'}}>
-                           {paciente.objetivoPersonalData.acciones.map((acc:string, i:number) => (
-                               <span key={i} style={{fontSize:'0.8rem', background:'rgba(255,255,255,0.1)', padding:'5px 10px', borderRadius:'15px', color:'white'}}>• {acc}</span>
-                           ))}
+                           {paciente.objetivoPersonalData.acciones.map((acc:string, i:number) => (<span key={i} style={{fontSize:'0.8rem', background:'rgba(255,255,255,0.1)', padding:'5px 10px', borderRadius:'15px', color:'white'}}>• {acc}</span>))}
                        </div>
                    )}
-
                    <div style={{marginTop:'20px', maxHeight:'200px', overflowY:'auto'}}>
                        <h5 style={{color:'#EC4899', margin:'0 0 10px 0'}}>ÚLTIMAS REFLEXIONES</h5>
                        {reflexionesObjetivo.length === 0 ? <p style={{color:'gray'}}>Sin registros.</p> : (
@@ -542,15 +525,7 @@ export function PanelPsicologo({ userData, userUid }: any) {
                         <h4 style={{margin:0, color:'var(--secondary)', fontSize:'1.1rem'}}>NUEVA ENTRADA</h4>
                         <input type="date" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} style={{background:'rgba(15,23,42,0.8)', border:'1px solid #334155', color:'white', padding:'8px 15px', borderRadius:'6px', fontFamily:'Rajdhani', cursor:'pointer'}} />
                     </div>
-                    
-                    <textarea 
-                        value={nuevaNota} 
-                        onChange={e => setNuevaNota(e.target.value)} 
-                        placeholder="Escribe la evolución clínica, observaciones o bitácora de sesión..." 
-                        className="terminal-input"
-                        style={{height:'150px', marginBottom:'20px'}} 
-                    />
-                    
+                    <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)} placeholder="Escribe la evolución clínica, observaciones o bitácora de sesión..." className="terminal-input" style={{height:'150px', marginBottom:'20px'}} />
                     <div style={{textAlign:'right'}}>
                         <button onClick={guardarNota} className="btn-neon">GUARDAR NOTA ENCRIPTADA</button>
                     </div>
@@ -625,11 +600,23 @@ export function PanelPsicologo({ userData, userUid }: any) {
                                             </div>
                                         </div>
                                         <div style={{display:'flex', gap:'10px'}}>
+                                            {/* BOTÓN ESTADÍSTICAS */}
+                                            <button 
+                                                onClick={() => setExpandedStatsHabit(expandedStatsHabit === h.id ? null : h.id)}
+                                                style={{background:'none', border:'none', color: expandedStatsHabit === h.id ? 'var(--secondary)' : '#94A3B8', cursor:'pointer'}}
+                                                title="Ver historial gráfico"
+                                            >
+                                                <IconChart />
+                                            </button>
                                             <button onClick={() => cargarParaEditar(h)} style={{background:'none', border:'none', color:'var(--primary)', cursor:'pointer'}}><IconEdit/></button>
                                             <button onClick={() => archivarHabito(h.id, h.estado)} style={{background:'none', border:'none', color:'#E2E8F0', cursor:'pointer'}}><IconMedal/></button>
                                             <button onClick={() => eliminarHabito(h.id)} style={{background:'none', border:'none', color:'#EF4444', cursor:'pointer'}}><IconTrash/></button>
                                         </div>
                                     </div>
+
+                                    {/* GRÁFICA DESPLEGABLE */}
+                                    {expandedStatsHabit === h.id && renderHabitChart(h)}
+
                                     {/* BITÁCORA EN HÁBITO */}
                                     {h.comentariosSemana && Object.keys(h.comentariosSemana).length > 0 && (
                                         <div style={{marginTop:'10px', background:'rgba(0,0,0,0.3)', padding:'10px', borderRadius:'8px'}}>

@@ -27,7 +27,7 @@ const AVAILABLE_TESTS = [
     description: 'Instrumento para evaluar el grado de depresión y monitorear la severidad de los síntomas.',
     duration: '5-10 min',
     tags: ['Depresión', 'Seguimiento'],
-    active: false // Aún no disponible
+    active: true // ✅ AHORA ACTIVO
   }
 ];
 
@@ -66,7 +66,8 @@ export const TestCatalog: React.FC<Props> = ({ onSelectTest, onCancel }) => {
               height: '100%', 
               opacity: test.active ? 1 : 0.6, 
               border: test.active ? '1px solid rgba(34, 211, 238, 0.3)' : '1px dashed #475569',
-              transition: 'transform 0.3s, box-shadow 0.3s'
+              transition: 'transform 0.3s, box-shadow 0.3s',
+              cursor: test.active ? 'default' : 'not-allowed'
             }}
           >
             <div className="panel-header" style={{ background: test.active ? 'rgba(6, 182, 212, 0.1)' : 'rgba(0,0,0,0.2)' }}>
