@@ -1,11 +1,10 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App'          // <--- Asegúrate de que esto esté descomentado
-// import { DivaLab } from './dev/DivaLab'  <--- Comenta o borra esto
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './index.css'; // Asumo que Tailwind se inyectará aquí
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />                      {/* <--- ¡Aquí debe decir App, no DivaLab! */}
-  </StrictMode>,
-)
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
