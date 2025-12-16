@@ -1,142 +1,165 @@
 import { create } from 'zustand';
-import { 
-  signInWithPopup, 
-  signOut, 
-  onAuthStateChanged, 
-  User 
-} from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../config/firebase';
+import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, Timestamp, addDoc } from 'firebase/firestore';
 
-// 🦄 ADN UNICORNIO: Preparamos la estructura para B2B
 interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
-  role: 'admin' | 'psicologo' | 'paciente';
-  isAdmin?: boolean; 
-  
-  // 🏢 ESTRUCTURA MULTI-TENANT (EMPRESARIAL)
-  organizationId: string; // ID de tu "Clínica" o "Empresa" (Al inicio es tu mismo UID)
-  organizationName?: string; // Nombre comercial (Ej: "Consultorio Dr. Stark")
-
-  // 🤝 VINCULACIÓN VIRAL
-  uniqueCode: string; // El código que compartirás (Ej: STARK-8821)
-  
-  createdAt: any;
+  photoURL: string;
+  role?: 'psicologo' | 'paciente' | 'admin'; // El rol ahora es opcional al principio
+  organizationId?: string;
+  uniqueCode?: string;
 }
 
 interface AuthState {
-  user: User | null;
-  profile: UserProfile | null;
+  user: UserProfile | null;
   loading: boolean;
+  needsOnboarding: boolean; // 🚩 NUEVA BANDERA
+  error: string | null;
   
+  initializeListener: () => void;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
-  initializeListener: () => void;
-  toggleUserRole: () => void;
-  generateUniqueCode: () => Promise<void>; // 👈 Nueva función
+  
+  // 👇 NUEVA ACCIÓN: Registrar el rol elegido
+  registerRole: (role: 'psicologo' | 'paciente', extraData?: { therapistCode?: string }) => Promise<void>;
 }
-
-// Generador de códigos aleatorios estilo "Agente Secreto"
-const generateCode = (name: string) => {
-  const prefix = name.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, 'NEX');
-  const random = Math.floor(1000 + Math.random() * 9000); // 4 dígitos
-  return `${prefix}-${random}`; // Ej: JUA-4921
-};
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-  profile: null,
   loading: true,
+  needsOnboarding: false,
+  error: null,
+
+  initializeListener: () => {
+    set({ loading: true });
+    onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data() as UserProfile;
+          // Si tiene usuario pero NO tiene rol, necesita onboarding
+          set({ 
+            user: userData, 
+            needsOnboarding: !userData.role, 
+            loading: false 
+          });
+        } else {
+          set({ user: null, loading: false });
+        }
+      } else {
+        set({ user: null, loading: false });
+      }
+    });
+  },
 
   loginWithGoogle: async () => {
+    set({ loading: true, error: null });
     try {
-      set({ loading: true });
       const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
+      const { uid, email, displayName, photoURL } = result.user;
 
-      const userRef = doc(db, 'users', user.uid);
+      const userRef = doc(db, 'users', uid);
       const userSnap = await getDoc(userRef);
 
-      let userProfile: UserProfile;
-
-      if (userSnap.exists()) {
-        userProfile = userSnap.data() as UserProfile;
-        
-        // 🛠️ MIGRACIÓN SILENCIOSA: Si es usuario viejo y no tiene código, se lo creamos
-        if (!userProfile.uniqueCode || !userProfile.organizationId) {
-           const code = generateCode(userProfile.displayName || 'DOC');
-           const updates = {
-             uniqueCode: userProfile.uniqueCode || code,
-             organizationId: userProfile.organizationId || user.uid, // Por defecto eres tu propia org
-           };
-           await updateDoc(userRef, updates);
-           userProfile = { ...userProfile, ...updates };
-        }
-
-      } else {
-        // Nuevo Usuario (Nace con estructura Unicornio)
-        const code = generateCode(user.displayName || 'NEXUS');
-        userProfile = {
-          uid: user.uid,
-          email: user.email || '',
-          displayName: user.displayName || 'Agente Nexus',
-          role: 'psicologo',
-          
-          organizationId: user.uid, // Eres el fundador de tu propia Org
-          uniqueCode: code,
-          
-          createdAt: Timestamp.now(),
+      if (!userSnap.exists()) {
+        // CREAR USUARIO "EN BLANCO" (Sin Rol)
+        const newUser: UserProfile = {
+          uid,
+          email: email || '',
+          displayName: displayName || 'Usuario',
+          photoURL: photoURL || '',
+          // No asignamos role aún
         };
-        await setDoc(userRef, userProfile);
+        await setDoc(userRef, newUser);
+        set({ user: newUser, needsOnboarding: true, loading: false });
+      } else {
+        const userData = userSnap.data() as UserProfile;
+        set({ 
+          user: userData, 
+          needsOnboarding: !userData.role, // Si no tiene rol, onboarding
+          loading: false 
+        });
+      }
+    } catch (error: any) {
+      console.error(error);
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  registerRole: async (role, extraData) => {
+    const { user } = get();
+    if (!user) return;
+    set({ loading: true });
+
+    try {
+      const updates: any = { role };
+
+      // LÓGICA SI ES PSICÓLOGO
+      if (role === 'psicologo') {
+        const codePrefix = user.displayName.split(' ')[0].toUpperCase().substring(0, 4) || 'USER';
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        updates.uniqueCode = `${codePrefix}-${randomNum}`;
+        updates.organizationId = user.uid;
       }
 
-      set({ user, profile: userProfile, loading: false });
+      // LÓGICA SI ES PACIENTE (Con código)
+      if (role === 'paciente' && extraData?.therapistCode) {
+        // Buscar al terapeuta por su código
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('uniqueCode', '==', extraData.therapistCode));
+        const querySnapshot = await getDocs(q);
 
-    } catch (error) {
-      console.error("Error en Login:", error);
-      set({ loading: false });
+        if (querySnapshot.empty) {
+          throw new Error("Código de profesional inválido.");
+        }
+
+        const therapist = querySnapshot.docs[0].data();
+        
+        // Crear el expediente del paciente automáticamente
+        await addDoc(collection(db, 'patients'), {
+          firstName: user.displayName.split(' ')[0],
+          lastName: user.displayName.split(' ')[1] || '',
+          email: user.email,
+          therapistId: therapist.uid,
+          linkedUserUid: user.uid,
+          providerType: 'psicologo',
+          therapyMode: 'tcc',
+          active: true,
+          level: 1,
+          currentXP: 0,
+          nextLevelXP: 100,
+          gold: 50,
+          nexos: 0,
+          stats: { vitality: 10, wisdom: 10, social: 10, resilience: 10, strength: 10, autocuidado: 10, desarrollo: 10, vinculacion: 10 },
+          inventory: [],
+          activeQuests: [],
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+      }
+
+      // Actualizar usuario
+      await updateDoc(doc(db, 'users', user.uid), updates);
+      
+      // Actualizar estado local
+      set({ 
+        user: { ...user, ...updates }, 
+        needsOnboarding: false, 
+        loading: false 
+      });
+
+    } catch (error: any) {
+      console.error(error);
+      set({ error: error.message, loading: false });
+      throw error;
     }
   },
 
   logout: async () => {
     await signOut(auth);
-    set({ user: null, profile: null });
-  },
-
-  initializeListener: () => {
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        
-        if (userSnap.exists()) {
-          const data = userSnap.data() as UserProfile;
-          set({ user, profile: data, loading: false });
-        } else {
-          set({ user, loading: false }); 
-        }
-      } else {
-        set({ user: null, profile: null, loading: false });
-      }
-    });
-  },
-
-  toggleUserRole: () => {
-    const { profile } = get();
-    if (!profile?.isAdmin) return;
-    const newRole = profile.role === 'psicologo' ? 'admin' : 'psicologo';
-    set({ profile: { ...profile, role: newRole } });
-  },
-
-  generateUniqueCode: async () => {
-    // Función manual por si quieres regenerarlo
-    const { profile } = get();
-    if (!profile) return;
-    const newCode = generateCode(profile.displayName);
-    const userRef = doc(db, 'users', profile.uid);
-    await updateDoc(userRef, { uniqueCode: newCode });
-    set({ profile: { ...profile, uniqueCode: newCode } });
+    set({ user: null, needsOnboarding: false });
   }
 }));

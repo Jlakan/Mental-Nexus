@@ -1,60 +1,81 @@
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom'; // Para navegar
-import { useAuthStore } from '../../store/authStore'; // Importamos el cerebro
-import { ShieldCheck, Loader2 } from 'lucide-react'; // Iconos bonitos
+import { useNavigate } from 'react-router-dom';
+import { Hexagon, BrainCircuit, ArrowRight, Loader } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
 
 export const LoginScreen = () => {
+  const { loginWithGoogle, loading, user, needsOnboarding, error } = useAuthStore();
   const navigate = useNavigate();
-  const { loginWithGoogle, user, profile, loading } = useAuthStore();
 
-  // EFECTO: Si el usuario ya está logueado y tiene perfil, lo mandamos a su casa
+  // 🤖 EFECTO DE REDIRECCIÓN INTELIGENTE
+  // Este es el "Cerebro" que decide a dónde va el usuario después de loguearse
   useEffect(() => {
-    if (user && profile) {
-      if (profile.role === 'psicologo' || profile.role === 'admin') {
+    if (user) {
+      if (needsOnboarding) {
+        // Usuario nuevo o sin rol -> A elegir perfil
+        navigate('/onboarding');
+      } else if (user.role === 'paciente') {
+        // Paciente registrado -> Al videojuego
+        navigate('/paciente');
+      } else if (user.role === 'psicologo') {
+        // Profesional registrado -> Al dashboard
         navigate('/app/dashboard');
-      } else if (profile.role === 'paciente') {
-        navigate('/paciente/home');
       }
     }
-  }, [user, profile, navigate]);
+  }, [user, needsOnboarding, navigate]);
 
   return (
-    <div className="flex h-screen items-center justify-center bg-gray-900 text-white relative overflow-hidden">
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4 relative overflow-hidden">
       
-      {/* Decoración de fondo (Estilo Sidney) */}
-      <div className="absolute top-0 left-0 w-full h-full bg-[url('https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80')] opacity-10 bg-cover bg-center" />
+      {/* Fondo Decorativo Cyberpunk */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-[-10%] left-[-10%] w-96 h-96 bg-purple-600/10 rounded-full blur-3xl"></div>
+      </div>
 
-      <div className="z-10 bg-gray-800/80 p-8 rounded-2xl backdrop-blur-md border border-gray-700 shadow-2xl max-w-md w-full text-center">
+      <div className="bg-gray-900 border border-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md relative z-10">
         
-        <div className="flex justify-center mb-6">
-          <div className="p-4 bg-gray-700 rounded-full border border-neon-blue">
-            <ShieldCheck className="w-12 h-12 text-blue-400" />
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <div className="relative">
+              <Hexagon className="text-blue-600 fill-blue-900/20" size={64} strokeWidth={1.5} />
+              <BrainCircuit className="text-blue-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" size={32} />
+            </div>
           </div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-2">Mental Nexus</h1>
+          <p className="text-gray-400">Sistema de Gestión Terapéutica & RPG</p>
         </div>
 
-        <h1 className="text-4xl font-bold mb-2 text-white tracking-tighter">MENTAL NEXUS</h1>
-        <p className="text-gray-400 mb-8 text-sm uppercase tracking-widest">Protocolo de Acceso Seguro</p>
+        {error && (
+          <div className="bg-red-900/20 border border-red-900 text-red-400 p-3 rounded-lg mb-6 text-sm text-center">
+            {error}
+          </div>
+        )}
 
-        <button 
+        <button
           onClick={loginWithGoogle}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-blue-600 hover:bg-blue-500 rounded-xl transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed font-bold"
+          className="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all transform active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {loading ? (
             <>
-              <Loader2 className="animate-spin" /> Conectando...
+              <Loader className="animate-spin" size={24} />
+              <span>Conectando Neuro-Enlace...</span>
             </>
           ) : (
             <>
-              <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-6 h-6" alt="Google" />
-              Entrar con Google
+              <img src="https://www.google.com/favicon.ico" alt="G" className="w-5 h-5" />
+              <span>Entrar con Google</span>
+              <ArrowRight size={20} className="text-gray-400" />
             </>
           )}
         </button>
 
-        <p className="mt-6 text-xs text-gray-500">
-          Versión Alpha 0.2.0 - Acceso Restringido
-        </p>
+        <div className="mt-8 text-center">
+          <p className="text-xs text-gray-600">
+            v1.2.0 • Protocolo Onboarding Activo
+          </p>
+        </div>
       </div>
     </div>
   );

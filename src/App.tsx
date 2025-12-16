@@ -5,13 +5,14 @@ import { useAuthStore } from './store/authStore';
 // Layout Principal (Menú Lateral)
 import { DashboardLayout } from './components/layout/DashboardLayout';
 
-// Pantallas de Autenticación
+// Pantallas de Autenticación y Onboarding
 import { LoginScreen } from './modules/auth/LoginScreen';
+import { OnboardingScreen } from './modules/auth/OnboardingScreen'; // 👈 NUEVA PANTALLA
 
 // Pantallas del Profesional (Dashboard)
 import { TherapistDashboard } from './modules/dashboard/TherapistDashboard';
 import { PatientsList } from './modules/dashboard/PatientsList';
-import { PatientDetail } from './modules/dashboard/PatientDetail'; // 👈 Importamos el Detalle
+import { PatientDetail } from './modules/dashboard/PatientDetail';
 import { ConnectionCenter } from './modules/dashboard/ConnectionCenter';
 
 // Pantalla del Paciente (App Gamificada)
@@ -43,8 +44,9 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 1. RUTA PÚBLICA (LOGIN) */}
+        {/* 1. RUTAS PÚBLICAS Y DE ENTRADA */}
         <Route path="/login" element={<LoginScreen />} />
+        <Route path="/onboarding" element={<OnboardingScreen />} /> {/* 👈 NUEVA RUTA */}
         
         {/* 2. RUTAS PROTEGIDAS DEL PROFESIONAL (Dentro del Layout con Sidebar) */}
         <Route path="/app" element={<DashboardLayout />}>
@@ -56,7 +58,7 @@ function App() {
           
           {/* Gestión de Pacientes */}
           <Route path="pacientes" element={<PatientsList />} />
-          <Route path="pacientes/:id" element={<PatientDetail />} /> {/* 👈 RUTA DE DETALLE */}
+          <Route path="pacientes/:id" element={<PatientDetail />} />
           
           {/* Centro de Conexión (Agenda) */}
           <Route path="agenda" element={<ConnectionCenter />} /> 
