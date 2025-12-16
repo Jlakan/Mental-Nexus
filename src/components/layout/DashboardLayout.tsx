@@ -21,6 +21,8 @@ export const DashboardLayout = () => {
     return <Navigate to="/login" replace />;
   }
 
+
+
   // 3. Si todo está bien, muestra el Dashboard con el Sidebar
   return (
     <div className="flex h-screen bg-gray-950 text-white font-sans overflow-hidden">
