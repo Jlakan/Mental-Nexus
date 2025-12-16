@@ -8,7 +8,7 @@ interface UserProfile {
   email: string;
   displayName: string;
   photoURL: string;
-  role?: 'psicologo' | 'paciente' | 'admin'; // El rol ahora es opcional al principio
+  role?: 'psicologo' | 'paciente' | 'admin';
   organizationId?: string;
   uniqueCode?: string;
 }
@@ -16,15 +16,16 @@ interface UserProfile {
 interface AuthState {
   user: UserProfile | null;
   loading: boolean;
-  needsOnboarding: boolean; // 🚩 NUEVA BANDERA
+  needsOnboarding: boolean;
   error: string | null;
   
   initializeListener: () => void;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
-  
-  // 👇 NUEVA ACCIÓN: Registrar el rol elegido
   registerRole: (role: 'psicologo' | 'paciente', extraData?: { therapistCode?: string }) => Promise<void>;
+  
+  // 👇 RESTAURAMOS ESTA FUNCIÓN
+  toggleUserRole: () => void; 
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -40,7 +41,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data() as UserProfile;
-          // Si tiene usuario pero NO tiene rol, necesita onboarding
           set({ 
             user: userData, 
             needsOnboarding: !userData.role, 
@@ -65,13 +65,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-        // CREAR USUARIO "EN BLANCO" (Sin Rol)
         const newUser: UserProfile = {
           uid,
           email: email || '',
           displayName: displayName || 'Usuario',
           photoURL: photoURL || '',
-          // No asignamos role aún
         };
         await setDoc(userRef, newUser);
         set({ user: newUser, needsOnboarding: true, loading: false });
@@ -79,7 +77,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const userData = userSnap.data() as UserProfile;
         set({ 
           user: userData, 
-          needsOnboarding: !userData.role, // Si no tiene rol, onboarding
+          needsOnboarding: !userData.role, 
           loading: false 
         });
       }
@@ -97,7 +95,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const updates: any = { role };
 
-      // LÓGICA SI ES PSICÓLOGO
       if (role === 'psicologo') {
         const codePrefix = user.displayName.split(' ')[0].toUpperCase().substring(0, 4) || 'USER';
         const randomNum = Math.floor(1000 + Math.random() * 9000);
@@ -105,9 +102,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         updates.organizationId = user.uid;
       }
 
-      // LÓGICA SI ES PACIENTE (Con código)
       if (role === 'paciente' && extraData?.therapistCode) {
-        // Buscar al terapeuta por su código
         const usersRef = collection(db, 'users');
         const q = query(usersRef, where('uniqueCode', '==', extraData.therapistCode));
         const querySnapshot = await getDocs(q);
@@ -118,7 +113,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         const therapist = querySnapshot.docs[0].data();
         
-        // Crear el expediente del paciente automáticamente
         await addDoc(collection(db, 'patients'), {
           firstName: user.displayName.split(' ')[0],
           lastName: user.displayName.split(' ')[1] || '',
@@ -141,10 +135,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
       }
 
-      // Actualizar usuario
       await updateDoc(doc(db, 'users', user.uid), updates);
-      
-      // Actualizar estado local
       set({ 
         user: { ...user, ...updates }, 
         needsOnboarding: false, 
@@ -161,5 +152,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     await signOut(auth);
     set({ user: null, needsOnboarding: false });
+  },
+
+  // 👇 LA FUNCIÓN RESTAURADA (GOD MODE)
+  toggleUserRole: () => {
+    const currentUser = get().user;
+    if (!currentUser) return;
+    
+    // Switch simple para pruebas (Solo memoria local)
+    const newRole = currentUser.role === 'psicologo' ? 'admin' : 'psicologo';
+    set({ user: { ...currentUser, role: newRole } });
   }
 }));
