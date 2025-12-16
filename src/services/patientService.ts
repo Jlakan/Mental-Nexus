@@ -7,16 +7,17 @@ import {
   Timestamp,
   doc,
   updateDoc,
-  getDoc
+  getDoc,
+  deleteDoc // 👈 Importamos deleteDoc
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Patient, TherapyMode, Quest } from '../types/patient';
+import { Patient, TherapyMode } from '../types/patient';
 
 const COLLECTION_NAME = 'patients';
 
 export const patientService = {
   
-  // 1. Crear nuevo paciente
+  // 1. Crear nuevo paciente (Manual)
   createPatient: async (
     therapistId: string, 
     data: { firstName: string; lastName: string; email: string; therapyMode: TherapyMode }
@@ -49,7 +50,7 @@ export const patientService = {
     }
   },
 
-  // 2. Traer MIS pacientes (Vista Profesional)
+  // 2. Traer MIS pacientes
   getMyPatients: async (therapistId: string): Promise<Patient[]> => {
     try {
       const q = query(collection(db, COLLECTION_NAME), where("therapistId", "==", therapistId));
@@ -61,7 +62,7 @@ export const patientService = {
     }
   },
 
-  // 3. 👇 NUEVO: Buscar Paciente por Email (Para la App del Paciente)
+  // 3. Buscar Paciente por Email (Para Login)
   getPatientByEmail: async (email: string): Promise<Patient | null> => {
     try {
       const q = query(collection(db, COLLECTION_NAME), where("email", "==", email));
@@ -76,7 +77,7 @@ export const patientService = {
     }
   },
 
-  // 4. 👇 NUEVO: Completar Misión (Lógica Real)
+  // 4. Completar Misión
   completeQuest: async (patientId: string, questId: string): Promise<void> => {
     try {
       const patientRef = doc(db, COLLECTION_NAME, patientId);
@@ -85,29 +86,25 @@ export const patientService = {
       if (!patientSnap.exists()) return;
       const patientData = patientSnap.data() as Patient;
 
-      // Buscar la misión
       const questIndex = patientData.activeQuests.findIndex(q => q.id === questId);
       if (questIndex === -1) return;
       
       const quest = patientData.activeQuests[questIndex];
-      if (quest.completed) return; // Ya estaba hecha
+      if (quest.completed) return;
 
-      // Actualizar datos
       const newGold = (patientData.gold || 0) + quest.goldReward;
       const newXP = (patientData.currentXP || 0) + quest.xpReward;
       
-      // Lógica de Subida de Nivel (Simple)
       let newLevel = patientData.level;
       let finalXP = newXP;
       let nextLevelXP = patientData.nextLevelXP;
 
       if (finalXP >= nextLevelXP) {
         newLevel += 1;
-        finalXP = finalXP - nextLevelXP; // Resto de XP
-        nextLevelXP = Math.floor(nextLevelXP * 1.5); // Cada nivel cuesta 50% más
+        finalXP = finalXP - nextLevelXP;
+        nextLevelXP = Math.floor(nextLevelXP * 1.5);
       }
 
-      // Marcar misión como completa
       const updatedQuests = [...patientData.activeQuests];
       updatedQuests[questIndex] = { ...quest, completed: true };
 
@@ -121,6 +118,19 @@ export const patientService = {
 
     } catch (error) {
       console.error("Error completando misión:", error);
+      throw error;
+    }
+  },
+
+  // 5. 👇 NUEVA FUNCIÓN: ELIMINAR PACIENTE
+  deletePatient: async (patientId: string): Promise<void> => {
+    try {
+      await deleteDoc(doc(db, COLLECTION_NAME, patientId));
+      // NOTA: Esto solo borra el expediente médico en 'patients'.
+      // La cuenta de Google del usuario en 'users' queda intacta, 
+      // lista para vincularse con otro profesional si así lo desea.
+    } catch (error) {
+      console.error("Error eliminando paciente:", error);
       throw error;
     }
   }
