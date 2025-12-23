@@ -20,7 +20,6 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
   // Modos de vista
   const [adminViewMode, setAdminViewMode] = useState<'admin' | 'professional'>('admin');
   const [assistantMode, setAssistantMode] = useState<'agenda' | 'register'>('agenda');
@@ -88,11 +87,11 @@ export default function App() {
           position: 'fixed', bottom: '20px', right: '20px', zIndex: 9999,
           display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px'
         }}>
-          <button
+          <button 
             onClick={() => setAdminViewMode(prev => prev === 'admin' ? 'professional' : 'admin')}
             style={{
               background: adminViewMode === 'admin' ? '#2196F3' : '#333',
-              color: 'white', border: '2px solid white', borderRadius: '50%',
+              color: 'white', border: '2px solid white', borderRadius: '50%', 
               width: '60px', height: '60px', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
               fontSize: '24px', display:'flex', alignItems:'center', justifyContent:'center'
             }}
@@ -113,14 +112,17 @@ export default function App() {
 
   // --- ROL PACIENTE ---
   if (userData.role === 'patient') {
-    if (userData.profileCompleted) {
-      return <PatientDashboard />;
+    // Aquí asumimos que si el perfil tiene datos completos mostramos el dashboard
+    // Puedes ajustar esta lógica según tus campos requeridos (ej: userData.fullName)
+    if (userData.fullName || userData.profileCompleted) {
+      // CORRECCIÓN: Se agrega la prop user={user}
+      return <PatientDashboard user={user} />;
     } else {
       return <PatientRegister />;
     }
   }
 
-  // --- ROL ASISTENTE (NUEVO) ---
+  // --- ROL ASISTENTE ---
   if (userData.role === 'assistant') {
     return (
       <div style={{fontFamily:'sans-serif'}}>
