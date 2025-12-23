@@ -36,7 +36,7 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
   const [myProfessionals, setMyProfessionals] = useState<any[]>([]);
   const [selectedProfId, setSelectedProfId] = useState<string>('');
   const [profConfig, setProfConfig] = useState<any>(null);
-  const [globalAppLink, setGlobalAppLink] = useState(''); // LINK DE LA APP
+  const [globalAppLink, setGlobalAppLink] = useState('');
 
   // --- DATOS ---
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -52,16 +52,15 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
   // --- FORMULARIO ---
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingApptId, setEditingApptId] = useState<string | null>(null);
-  
   const [formData, setFormData] = useState({
-    patientId: '', 
-    patientName: '', 
-    patientExternalPhone: '', 
-    patientExternalEmail: '', 
-    time: '09:00', 
+    patientId: '',
+    patientName: '',
+    patientExternalPhone: '',
+    patientExternalEmail: '',
+    time: '09:00',
     duration: 50,
     price: 500,
-    adminNotes: '', 
+    adminNotes: '',
     paymentStatus: 'pending',
     paymentMethod: 'cash'
   });
@@ -76,9 +75,11 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
 
         if (userRole === 'professional') {
           const docSnap = await getDoc(doc(db, "professionals", currentUserId));
-          const selfData = { id: currentUserId, ...docSnap.data() };
-          setMyProfessionals([selfData]);
-          setSelectedProfId(currentUserId);
+          if (docSnap.exists()) {
+             const selfData = { id: currentUserId, ...docSnap.data() };
+             setMyProfessionals([selfData]);
+             setSelectedProfId(currentUserId);
+          }
         } else {
           const q = query(collection(db, "professionals"), where("authorizedAssistants", "array-contains", currentUserId));
           const snap = await getDocs(q);
@@ -95,7 +96,7 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
   useEffect(() => {
     if (!selectedProfId) return;
     loadAgendaData();
-  }, [selectedProfId, selectedDate]);
+  }, [selectedProfId, selectedDate]); // Recargamos si cambia el profesional o la fecha (para refrescar visualmente)
 
   const loadAgendaData = async () => {
     setLoading(true);
@@ -103,16 +104,23 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
       const profRef = myProfessionals.find(p => p.id === selectedProfId);
       setProfConfig(profRef?.agendaConfig || { startHour: 8, endHour: 20, defaultDuration: 50, countryCode: '52' });
 
-      const qAppts = query(collection(db, "appointments"), where("professionalId", "==", selectedProfId), where("status", "!=", "cancelled"));
+      // CORRECCIÓN: Quitamos el filtro '!=' en la query para evitar problemas de índices en Firebase
+      // Filtramos los cancelados en memoria (Javascript)
+      const qAppts = query(collection(db, "appointments"), where("professionalId", "==", selectedProfId));
       const snapAppts = await getDocs(qAppts);
-      const apptsList = snapAppts.docs.map(d => {
-        const data = d.data();
-        return { 
-          id: d.id, ...data, 
-          start: data.start.toDate(), 
-          end: data.end.toDate() 
-        } as Appointment;
-      });
+      
+      const apptsList = snapAppts.docs
+        .map(d => {
+          const data = d.data();
+          return {
+            id: d.id, 
+            ...data,
+            start: data.start.toDate(),
+            end: data.end.toDate()
+          } as Appointment;
+        })
+        .filter(a => a.status !== 'cancelled'); // Filtro seguro en memoria
+
       setAppointments(apptsList);
 
       if (profRef?.professionalCode) {
@@ -127,8 +135,11 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
       const snapWait = await getDocs(qWait);
       setWaitlist(snapWait.docs.map(d => ({ id: d.id, ...d.data() })));
 
-    } catch (e) { console.error(e); } 
-    finally { setLoading(false); }
+    } catch (e) { 
+      console.error("Error cargando agenda:", e); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const calculateGhostPatients = (allPats: any[], allAppts: any[]) => {
@@ -154,11 +165,11 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
       let contactPhone = a.patientExternalPhone || '';
       let contactEmail = a.patientExternalEmail || '';
       if (a.patientId) {
-          const registeredP = patients.find(p => p.id === a.patientId);
-          if (registeredP) {
-              contactPhone = registeredP.contactNumber || '';
-              contactEmail = registeredP.email || '';
-          }
+         const registeredP = patients.find(p => p.id === a.patientId);
+         if (registeredP) {
+            contactPhone = registeredP.contactNumber || '';
+            contactEmail = registeredP.email || '';
+         }
       }
 
       const dateStr = a.start.toLocaleDateString();
@@ -182,7 +193,7 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
     if (!formData.patientName) return alert("Debes ingresar un nombre de paciente.");
 
     if (!formData.patientId && !formData.patientExternalPhone) {
-        if(!window.confirm("⚠️ Estás creando un paciente manual SIN TELÉFONO. No podrás enviarle WhatsApp. ¿Continuar?")) return;
+      if(!window.confirm("⚠️ Estás creando un paciente manual SIN TELÉFONO. No podrás enviarle WhatsApp. ¿Continuar?")) return;
     }
 
     const [h, m] = formData.time.split(':');
@@ -192,7 +203,7 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
     end.setMinutes(start.getMinutes() + formData.duration);
 
     const conflict = appointments.find(a => {
-      if (editingApptId === a.id) return false; 
+      if (editingApptId === a.id) return false;
       return (start < a.end) && (end > a.start);
     });
 
@@ -237,12 +248,12 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
       
       let pName = appt.patientName;
       if(!pName && appt.patientId) {
-          pName = patients.find(p => p.id === appt.patientId)?.fullName || '';
+        pName = patients.find(p => p.id === appt.patientId)?.fullName || '';
       }
 
       setFormData({
         patientId: appt.patientId || '',
-        patientName: pName || '', 
+        patientName: pName || '',
         patientExternalPhone: appt.patientExternalPhone || '',
         patientExternalEmail: appt.patientExternalEmail || '',
         time: timeStr, duration: appt.duration, price: appt.price || 500,
@@ -276,28 +287,28 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
   const openWhatsApp = (appt: Appointment) => {
     let phone = '';
     let pName = appt.patientName;
-
+    
     if (appt.patientId) {
-        const p = patients.find(x => x.id === appt.patientId);
-        if (p) {
-            phone = p.contactNumber || '';
-            pName = p.fullName;
-        }
+      const p = patients.find(x => x.id === appt.patientId);
+      if (p) {
+         phone = p.contactNumber || '';
+         pName = p.fullName;
+      }
     } else {
-        phone = appt.patientExternalPhone || '';
+      phone = appt.patientExternalPhone || '';
     }
 
     if (!phone) return alert("No hay número de teléfono registrado.");
 
     let cleanPhone = phone.replace(/\D/g, '');
     const prefix = profConfig?.countryCode || '52';
-    if (cleanPhone.length <= 10) cleanPhone = `${prefix}${cleanPhone}`; 
-    
+    if (cleanPhone.length <= 10) cleanPhone = `${prefix}${cleanPhone}`;
+
     const dateStr = appt.start.toLocaleDateString('es-ES', {weekday:'long', hour:'2-digit', minute:'2-digit'});
     
     // MENSAJE BASE
     let msg = `Hola ${pName}, confirmamos cita el ${dateStr}.`;
-
+    
     // PREGUNTAR SI INCLUIR INVITACIÓN
     const currentProf = myProfessionals.find(p => p.id === selectedProfId);
     if (globalAppLink && currentProf?.professionalCode) {
@@ -308,13 +319,13 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
         msg += `\n🔑 Código de vinculación: *${currentProf.professionalCode}*`;
       }
     }
-    
+
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const getWeekDates = (baseDate: Date) => {
     const current = new Date(baseDate);
-    const day = current.getDay(); 
+    const day = current.getDay();
     const sunday = new Date(current);
     sunday.setDate(current.getDate() - day);
     const week = [];
@@ -325,46 +336,59 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
     }
     return week;
   };
-  
   const weekDates = getWeekDates(selectedDate);
 
   // 6. RENDER
-  if (loading) return <div style={{height:'100vh', display:'flex', justifyContent:'center', alignItems:'center', color:'#666'}}><h2>⏳ Cargando Agenda...</h2></div>;
+  if (loading) return <div style={{height:'100vh', display:'flex', justifyContent:'center', alignItems:'center', color:'#666'}}><h2> ⏳ Cargando Agenda... </h2></div>;
 
   const renderSlots = () => {
     const startH = parseInt(profConfig?.startHour) || 8;
     const endH = parseInt(profConfig?.endHour) || 20;
     const slots = [];
+    
+    // CORRECCIÓN: Filtro de fecha estricto (Año, Mes y Día)
+    const currentYear = selectedDate.getFullYear();
+    const currentMonth = selectedDate.getMonth();
+    const currentDay = selectedDate.getDate();
+
     for (let h = startH; h < endH; h++) {
       const hourStr = `${h.toString().padStart(2, '0')}:00`;
-      const slotAppts = appointments.filter(a => a.start.getHours() === h && a.start.getDate() === selectedDate.getDate());
       
+      const slotAppts = appointments.filter(a => 
+        a.start.getHours() === h && 
+        a.start.getDate() === currentDay &&
+        a.start.getMonth() === currentMonth &&
+        a.start.getFullYear() === currentYear
+      );
+
       slots.push(
         <div key={h} style={{display:'flex', minHeight:'60px', borderBottom:'1px solid #eee'}}>
           <div style={{width:'60px', padding:'10px', color:'#999', borderRight:'1px solid #eee', fontSize:'14px'}}>{hourStr}</div>
           <div style={{flex:1, position:'relative'}}>
-             <div style={{position:'absolute', inset:0, zIndex:1}} onClick={() => openModal(undefined, hourStr)} />
-             {slotAppts.map(appt => {
-               const pName = appt.patientName || patients.find(p => p.id === appt.patientId)?.fullName || 'Desconocido';
-               const isPaid = appt.paymentStatus === 'paid';
-               const hasPhone = appt.patientId || appt.patientExternalPhone;
+            {/* Click en fondo vacío para crear cita */}
+            <div style={{position:'absolute', inset:0, zIndex:1}} onClick={() => openModal(undefined, hourStr)} />
+            
+            {slotAppts.map(appt => {
+              const pName = appt.patientName || patients.find(p => p.id === appt.patientId)?.fullName || 'Desconocido';
+              const isPaid = appt.paymentStatus === 'paid';
+              const hasPhone = appt.patientId || appt.patientExternalPhone;
 
-               return (
-                 <div key={appt.id} onClick={(e) => {e.stopPropagation(); openModal(appt);}} 
-                   style={{
-                     position:'relative', zIndex:2, margin:'2px', padding:'5px', borderRadius:'4px', cursor:'pointer',
-                     background: isPaid ? '#E8F5E9' : '#E3F2FD', borderLeft: `4px solid ${isPaid ? '#43A047' : '#2196F3'}`,
-                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                   }}>
-                   <div style={{fontWeight:'bold', fontSize:'13px'}}>{pName} <span style={{fontWeight:'normal'}}>(${appt.price})</span></div>
-                   <div style={{fontSize:'11px', color:'#666'}}>{appt.duration} min | {appt.adminNotes}</div>
-                   <div style={{display:'flex', gap:'5px', marginTop:'5px'}}>
-                     {hasPhone && <button onClick={(e)=>{e.stopPropagation(); openWhatsApp(appt)}} style={{border:'none', background:'none', cursor:'pointer'}} title="Enviar WhatsApp">💬</button>}
-                     <button onClick={(e)=>{e.stopPropagation(); handleSoftDelete(appt.id)}} style={{border:'none', background:'none', cursor:'pointer', color:'red'}} title="Cancelar Cita">🗑</button>
-                   </div>
-                 </div>
-               )
-             })}
+              return (
+                <div key={appt.id} onClick={(e) => {e.stopPropagation(); openModal(appt);}} 
+                  style={{
+                    position:'relative', zIndex:2, margin:'2px', padding:'5px', borderRadius:'4px', cursor:'pointer',
+                    background: isPaid ? '#E8F5E9' : '#E3F2FD', borderLeft: `4px solid ${isPaid ? '#43A047' : '#2196F3'}`,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                  }}>
+                  <div style={{fontWeight:'bold', fontSize:'13px'}}>{pName} <span style={{fontWeight:'normal'}}>(${appt.price})</span></div>
+                  <div style={{fontSize:'11px', color:'#666'}}>{appt.duration} min | {appt.adminNotes}</div>
+                  <div style={{display:'flex', gap:'5px', marginTop:'5px'}}>
+                    {hasPhone && <button onClick={(e)=>{e.stopPropagation(); openWhatsApp(appt)}} style={{border:'none', background:'none', cursor:'pointer'}} title="Enviar WhatsApp">💬</button>}
+                    <button onClick={(e)=>{e.stopPropagation(); handleSoftDelete(appt.id)}} style={{border:'none', background:'none', cursor:'pointer', color:'red'}} title="Cancelar Cita">🗑</button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       );
@@ -377,16 +401,16 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
       {/* SIDEBAR */}
       <div style={{ width: '300px', background: 'white', borderRight: '1px solid #ddd', display:'flex', flexDirection:'column' }}>
         {userRole === 'assistant' && (
-          <div style={{ padding: '15px', background: '#333', color: 'white' }}>
-            <small style={{display:'block', marginBottom:'5px', fontSize:'10px', textTransform:'uppercase'}}>Gestionando Agenda de:</small>
-            <select value={selectedProfId} onChange={e => setSelectedProfId(e.target.value)} style={{width:'100%', padding:'8px', borderRadius:'4px'}}>
-              {myProfessionals.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}
-            </select>
-          </div>
+           <div style={{ padding: '15px', background: '#333', color: 'white' }}>
+             <small style={{display:'block', marginBottom:'5px', fontSize:'10px', textTransform:'uppercase'}}>Gestionando Agenda de:</small>
+             <select value={selectedProfId} onChange={e => setSelectedProfId(e.target.value)} style={{width:'100%', padding:'8px', borderRadius:'4px'}}>
+               {myProfessionals.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}
+             </select>
+           </div>
         )}
         <div style={{display:'flex', borderBottom:'1px solid #eee'}}>
-          <button onClick={() => setSidebarTab('rescue')} style={{flex:1, padding:'15px', border:'none', background: sidebarTab==='rescue'?'#fff':'#f0f0f0', borderBottom: sidebarTab==='rescue'?'3px solid #D32F2F':'none', cursor:'pointer', fontWeight:'bold', color: sidebarTab==='rescue'?'#D32F2F':'#666'}}>🚨 Rescate</button>
-          <button onClick={() => setSidebarTab('waitlist')} style={{flex:1, padding:'15px', border:'none', background: sidebarTab==='waitlist'?'#fff':'#f0f0f0', borderBottom: sidebarTab==='waitlist'?'3px solid #1976D2':'none', cursor:'pointer', fontWeight:'bold', color: sidebarTab==='waitlist'?'#1976D2':'#666'}}>⏳ Espera</button>
+           <button onClick={() => setSidebarTab('rescue')} style={{flex:1, padding:'15px', border:'none', background: sidebarTab==='rescue'?'#fff':'#f0f0f0', borderBottom: sidebarTab==='rescue'?'3px solid #D32F2F':'none', cursor:'pointer', fontWeight:'bold', color: sidebarTab==='rescue'?'#D32F2F':'#666'}}>🚨 Rescate</button>
+           <button onClick={() => setSidebarTab('waitlist')} style={{flex:1, padding:'15px', border:'none', background: sidebarTab==='waitlist'?'#fff':'#f0f0f0', borderBottom: sidebarTab==='waitlist'?'3px solid #1976D2':'none', cursor:'pointer', fontWeight:'bold', color: sidebarTab==='waitlist'?'#1976D2':'#666'}}> ⏳ Espera </button>
         </div>
         <div style={{flex:1, overflowY:'auto', padding:'10px'}}>
            {sidebarTab === 'rescue' ? ghostPatients.map(p => (
@@ -425,19 +449,27 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
           </div>
           <div style={{display:'flex', justifyContent:'space-between', gap:'5px'}}>
             {weekDates.map((d, index) => {
-              const isSelected = d.getDate() === selectedDate.getDate();
+              // Comparación de fecha estricta para el selector de día
+              const isSelected = d.toDateString() === selectedDate.toDateString();
               const isToday = d.toDateString() === new Date().toDateString();
               return (
-                <button key={index} onClick={() => setSelectedDate(d)} style={{flex: 1, padding: '10px 0', border: isSelected ? '2px solid #2196F3' : '1px solid #eee', background: isSelected ? '#E3F2FD' : (isToday ? '#FFFDE7' : 'white'), borderRadius: '8px', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center'}}>
-                  <span style={{fontSize:'11px', fontWeight:'bold', color:'#777'}}>{DAYS_HEADER[index]}</span>
-                  <span style={{fontSize:'18px', fontWeight:'bold', color: isSelected ? '#1565C0' : '#333'}}>{d.getDate()}</span>
+                <button key={index} onClick={() => setSelectedDate(d)} style={{flex: 1, padding: '10px 0', border: isSelected ? 
+                  '2px solid #2196F3' : '1px solid #eee', background: isSelected ? 
+                  '#E3F2FD' : (isToday ? '#FFFDE7' : 'white'), borderRadius: '8px', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center'}}>
+                   <span style={{fontSize:'11px', fontWeight:'bold', color:'#777'}}>{DAYS_HEADER[index]}</span>
+                   <span style={{fontSize:'18px', fontWeight:'bold', color: isSelected ? '#1565C0' : '#333'}}>{d.getDate()}</span>
                 </button>
               )
             })}
           </div>
           <div style={{textAlign:'right', marginTop:'5px'}}>
              <small style={{color:'#999', marginRight:'5px'}}>Ir a fecha:</small>
-             <input type="date" value={selectedDate.toISOString().split('T')[0]} onChange={e => setSelectedDate(new Date(e.target.value))} style={{border:'1px solid #ddd', borderRadius:'4px', padding:'2px'}} />
+             <input type="date" value={selectedDate.toISOString().split('T')[0]} onChange={e => {
+                // Ajuste de zona horaria básico al seleccionar manual
+                const [y,m,d] = e.target.value.split('-').map(Number);
+                const newDate = new Date(y, m-1, d); 
+                setSelectedDate(newDate);
+             }} style={{border:'1px solid #ddd', borderRadius:'4px', padding:'2px'}} />
           </div>
         </div>
         <div style={{flex:1, overflowY:'auto', padding:'20px'}}>{renderSlots()}</div>
@@ -446,16 +478,16 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
       {/* MODAL FORMULARIO */}
       {isFormOpen && (
         <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:100}}>
-          <div style={{background:'white', padding:'25px', width:'400px', borderRadius:'12px', boxShadow:'0 10px 25px rgba(0,0,0,0.2)'}}>
+           <div style={{background:'white', padding:'25px', width:'400px', borderRadius:'12px', boxShadow:'0 10px 25px rgba(0,0,0,0.2)'}}>
              <h3 style={{marginTop:0, borderBottom:'1px solid #eee', paddingBottom:'10px'}}>{editingApptId?'Editar':'Nueva'} Cita</h3>
              <form onSubmit={handleSave}>
                
                <div style={{marginBottom:'15px'}}>
                  <PatientSelector 
-                    patients={patients}
-                    selectedPatientId={formData.patientId}
-                    manualNameValue={formData.patientName}
-                    onSelect={(id, name) => setFormData({ ...formData, patientId: id, patientName: name })}
+                   patients={patients}
+                   selectedPatientId={formData.patientId}
+                   manualNameValue={formData.patientName}
+                   onSelect={(id, name) => setFormData({ ...formData, patientId: id, patientName: name })}
                  />
                </div>
 
@@ -463,24 +495,24 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
                  <div style={{marginBottom:'15px', padding:'10px', background:'#FFF3E0', borderRadius:'6px', border:'1px solid #FFCC80'}}>
                     <small style={{display:'block', color:'#E65100', marginBottom:'5px', fontWeight:'bold'}}>👤 Paciente Externo (Manual)</small>
                     <div style={{marginBottom:'8px'}}>
-                      <label style={{fontSize:'11px', display:'block'}}>Teléfono de contacto (Para WhatsApp):</label>
-                      <input 
-                        type="tel" 
-                        placeholder="Ej: 618 123 4567" 
-                        value={formData.patientExternalPhone} 
-                        onChange={e=>setFormData({...formData, patientExternalPhone:e.target.value})} 
-                        style={{width:'100%', padding:'5px', border:'1px solid #ccc', borderRadius:'4px'}} 
-                      />
+                       <label style={{fontSize:'11px', display:'block'}}>Teléfono de contacto (Para WhatsApp):</label>
+                       <input 
+                         type="tel"
+                         placeholder="Ej: 618 123 4567"
+                         value={formData.patientExternalPhone}
+                         onChange={e=>setFormData({...formData, patientExternalPhone:e.target.value})}
+                         style={{width:'100%', padding:'5px', border:'1px solid #ccc', borderRadius:'4px'}}
+                       />
                     </div>
                     <div>
-                      <label style={{fontSize:'11px', display:'block'}}>Correo electrónico (Opcional):</label>
-                      <input 
-                        type="email" 
-                        placeholder="Ej: correo@ejemplo.com" 
-                        value={formData.patientExternalEmail} 
-                        onChange={e=>setFormData({...formData, patientExternalEmail:e.target.value})} 
-                        style={{width:'100%', padding:'5px', border:'1px solid #ccc', borderRadius:'4px'}} 
-                      />
+                       <label style={{fontSize:'11px', display:'block'}}>Correo electrónico (Opcional):</label>
+                       <input 
+                         type="email"
+                         placeholder="Ej: correo@ejemplo.com"
+                         value={formData.patientExternalEmail}
+                         onChange={e=>setFormData({...formData, patientExternalEmail:e.target.value})}
+                         style={{width:'100%', padding:'5px', border:'1px solid #ccc', borderRadius:'4px'}}
+                       />
                     </div>
                  </div>
                )}
@@ -502,24 +534,24 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
                </div>
 
                <div style={{display:'flex', gap:'10px', marginBottom:'15px', background:'#f5f5f5', padding:'10px', borderRadius:'6px'}}>
-                  <div style={{flex:1}}>
-                    <label style={{fontSize:'11px', display:'block'}}>Estatus Pago:</label>
-                    <select value={formData.paymentStatus} onChange={e=>setFormData({...formData, paymentStatus:e.target.value as any})} style={{width:'100%', padding:'5px'}}>
-                      <option value="pending">Pendiente</option><option value="paid">Pagado</option>
-                    </select>
-                  </div>
-                  <div style={{flex:1}}>
-                    <label style={{fontSize:'11px', display:'block'}}>Método:</label>
-                    <select value={formData.paymentMethod} onChange={e=>setFormData({...formData, paymentMethod:e.target.value})} style={{width:'100%', padding:'5px'}}>
-                      <option value="cash">Efectivo</option><option value="card">Tarjeta</option>
-                      <option value="transfer">Transferencia</option>
-                    </select>
-                  </div>
+                 <div style={{flex:1}}>
+                   <label style={{fontSize:'11px', display:'block'}}>Estatus Pago:</label>
+                   <select value={formData.paymentStatus} onChange={e=>setFormData({...formData, paymentStatus:e.target.value as any})} style={{width:'100%', padding:'5px'}}>
+                     <option value="pending">Pendiente</option><option value="paid">Pagado</option>
+                   </select>
+                 </div>
+                 <div style={{flex:1}}>
+                   <label style={{fontSize:'11px', display:'block'}}>Método:</label>
+                   <select value={formData.paymentMethod} onChange={e=>setFormData({...formData, paymentMethod:e.target.value})} style={{width:'100%', padding:'5px'}}>
+                     <option value="cash">Efectivo</option><option value="card">Tarjeta</option>
+                     <option value="transfer">Transferencia</option>
+                   </select>
+                 </div>
                </div>
 
                <div style={{marginBottom:'20px'}}>
-                  <label style={{fontSize:'12px', fontWeight:'bold', display:'block', marginBottom:'5px'}}>Notas Administrativas:</label>
-                  <textarea placeholder="Ej: Traer estudios, cobrar saldo..." value={formData.adminNotes} onChange={e=>setFormData({...formData, adminNotes:e.target.value})} rows={2} style={{width:'100%', padding:'10px', borderRadius:'6px', border:'1px solid #ccc'}} />
+                 <label style={{fontSize:'12px', fontWeight:'bold', display:'block', marginBottom:'5px'}}>Notas Administrativas:</label>
+                 <textarea placeholder="Ej: Traer estudios, cobrar saldo..." value={formData.adminNotes} onChange={e=>setFormData({...formData, adminNotes:e.target.value})} rows={2} style={{width:'100%', padding:'10px', borderRadius:'6px', border:'1px solid #ccc'}} />
                </div>
 
                <div style={{textAlign:'right', display:'flex', gap:'10px', justifyContent:'flex-end'}}>
@@ -527,7 +559,7 @@ export default function AgendaView({ userRole, currentUserId, onBack }: Props) {
                  <button type="submit" style={{padding:'10px 20px', borderRadius:'6px', border:'none', background:'#2196F3', color:'white', fontWeight:'bold', cursor:'pointer'}}>Guardar Cita</button>
                </div>
              </form>
-          </div>
+           </div>
         </div>
       )}
     </div>
